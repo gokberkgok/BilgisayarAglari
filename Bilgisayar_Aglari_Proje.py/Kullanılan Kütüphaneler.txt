@@ -1,0 +1,1 @@
+PyQt6, networkx, matplotlib, numpy bu kütüphaneleri yükledikten sonra programı çalıştırın.
