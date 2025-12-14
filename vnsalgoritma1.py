@@ -273,9 +273,9 @@ class BSM307VNS:
 
 if __name__ == "__main__":
     # 1. Proje verilerinden motoru başlat
-    NODE_FILE = "C:\\Users\\yigit\\OneDrive\\Masaüstü\\Vns_Algorithm\\Vns_Algorithm\\BSM307_317_Guz2025_TermProject_NodeData.csv"
-    EDGE_FILE = "C:\\Users\\yigit\\OneDrive\\Masaüstü\\Vns_Algorithm\\Vns_Algorithm\\BSM307_317_Guz2025_TermProject_EdgeData.csv"
-    DEMAND_FILE = "C:\\Users\\yigit\\OneDrive\\Masaüstü\Vns_Algorithm\\Vns_Algorithm\\BSM307_317_Guz2025_TermProject_DemandData.csv"
+    NODE_FILE = "BSM307_317_Guz2025_TermProject_NodeData.csv"
+    EDGE_FILE = "BSM307_317_Guz2025_TermProject_EdgeData.csv"
+    DEMAND_FILE = "BSM307_317_Guz2025_TermProject_DemandData.csv"
     
     # VNS Motoru (Ağ Yükleniyor)
     vns_engine = BSM307VNS(NODE_FILE, EDGE_FILE)
@@ -355,4 +355,5 @@ if __name__ == "__main__":
     print("\n\n" + "="*90)
     print("TALEP BAŞINA ORTALAMA SONUÇLAR (Raporlama İçin)")
     print("="*90)
+
     print(avg_results.round(4).to_string())
