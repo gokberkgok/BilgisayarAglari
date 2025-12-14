@@ -126,7 +126,7 @@ def generate_graph(N, p):
     
     # ----- Load NodeData.csv -----
     try:
-        df = pd.read_csv("NodeData.csv", sep=";", decimal=",")
+        df = pd.read_csv("BSM307_317_Guz2025_TermProject_NodeData.csv", sep=";", decimal=",")
         df.columns = ["node_id", "processing_delay", "reliability"]
         
         # Ensure we have enough nodes
@@ -136,7 +136,7 @@ def generate_graph(N, p):
             
         #print(f"✅ NodeData.csv başarıyla okundu ({len(df)} düğüm)")
     except Exception as e:
-        print(f"❌ HATA: NodeData.csv okunamadı! {str(e)}")
+        print(f"❌ HATA: BSM307_317_Guz2025_TermProject_NodeData.csv okunamadı! {str(e)}")
         print("❌ Program sonlandırılıyor...")
         exit(1)
 
