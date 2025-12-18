@@ -1,359 +1,249 @@
-import networkx as nx
-import random
+import csv
 import math
+import random
+import time
 import copy
-import pandas as pd
-import numpy as np
+import os
+from collections import deque
 
-# ---------------------------------------------------------
-# 1. VERİ OKUMA VE ÖN İŞLEME YARDIMCI FONKSİYONLARI
-# ---------------------------------------------------------
+# =================================================
+# AYARLAR
+# =================================================
+W_DELAY = 0.33
+W_RELIABILITY = 0.33
+W_RESOURCE = 0.34
+MAX_BANDWIDTH_MBPS = 1000.0
 
-def read_csv_with_comma_decimal(file_name, sep=';'):
-    """
-    CSV dosyasını okur ve virgülden (.)'e dönüştürerek sayısal kolonları float yapar.
-    """
-    df = pd.read_csv(file_name, sep=sep, encoding='utf-8')
-    
-    # Sayısal kolonları bul ve virgülleri noktaya çevir
-    for col in df.columns:
-        # String kolonlarda virgül kontrolü yap
-        if df[col].dtype == 'object' and df[col].str.contains(',').any():
-            # Virgülü nokta yap ve sayıya dönüştür
-            df[col] = df[col].str.replace(',', '.', regex=False).astype(float)
-            
-    return df
+MAX_VNS_ITER = 20
+K_MAX = 3
+TEST_RUNS = 30
 
-# ---------------------------------------------------------
-# 2. BSM307 VNS SINIFI (Değişiklikler Buraya Uygulandı)
-# ---------------------------------------------------------
+# =================================================
+# DOSYA YOLLARI (TAŞINABİLİR)
+# =================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-class BSM307VNS:
-    def __init__(self, node_file, edge_file, w_delay=0.33, w_reliability=0.33, w_resource=0.34):
-        self.w_delay = w_delay
-        self.w_reliability = w_reliability
-        self.w_resource = w_resource
-        self.graph = nx.DiGraph()
-        
-        # Dosyalardan ağı yükle
-        self.load_network(node_file, edge_file)
-        self.num_nodes = len(self.graph.nodes)
+NODE_FILE = os.path.join(BASE_DIR, "C:\\Users\\yigit\\OneDrive\\Masaüstü\\Vns_Algorithm\\Vns_Algorithm\\BSM307_317_Guz2025_TermProject_NodeData.csv")
+EDGE_FILE = os.path.join(BASE_DIR, "C:\\Users\\yigit\\OneDrive\\Masaüstü\\Vns_Algorithm\\Vns_Algorithm\\BSM307_317_Guz2025_TermProject_EdgeData.csv")
+DEMAND_FILE = os.path.join(BASE_DIR, "C:\\Users\\yigit\\OneDrive\\Masaüstü\Vns_Algorithm\\Vns_Algorithm\\BSM307_317_Guz2025_TermProject_DemandData.csv")
 
-    def load_network(self, node_file, edge_file):
-        """Yüklenen Node ve Edge CSV'lerinden ağı NetworkX'e yükler."""
-        print("Ağ verileri yükleniyor...")
-        
-        # Düğüm Verilerini Yükle
-        node_df = pd.read_csv(node_file)
-        
-        # Düğüm Niteliklerini Grafiğe Ekle (node_id -> s_ms, r_node)
-        for index, row in node_df.iterrows():
-            node_id = int(row['node_id'])
-            self.graph.add_node(node_id, 
-                                processing_delay=row['s_ms'],   # İşlem Süresi (ms)
-                                reliability=row['r_node'])      # Düğüm Güvenilirliği (r_node)
+# =================================================
+# NETWORK GRAPH
+# =================================================
+class NetworkGraph:
+    def __init__(self):
+        self.nodes = {}
+        self.edges = {}
 
-        # Kenar Verilerini Yükle
-        edge_df = pd.read_csv(edge_file)
-        
-        # Kenar Niteliklerini Grafiğe Ekle
-        for index, row in edge_df.iterrows():
-            src = int(row['src'])
-            dst = int(row['dst'])
-            self.graph.add_edge(src, dst, 
-                                capacity_mbps=row['capacity_mbps'], # Bant Genişliği (capacity_mbps)
-                                delay_ms=row['delay_ms'],           # Gecikme (delay_ms)
-                                reliability=row['r_link'])          # Bağlantı Güvenilirliği (r_link)
-        
-        print(f"Ağ yüklendi: {len(self.graph.nodes)} Düğüm, {len(self.graph.edges)} Kenar.")
+    def load_data(self, node_file, edge_file):
+        with open(node_file, 'r', encoding='utf-8-sig') as f:
+            reader = csv.DictReader(f)
+            reader.fieldnames = [n.strip() for n in reader.fieldnames]
+            for r in reader:
+                nid = int(r["node_id"])
+                self.nodes[nid] = {
+                    "s_ms": float(r["s_ms"]),
+                    "r_node": float(r["r_node"])
+                }
+                self.edges.setdefault(nid, {})
 
-    def calculate_metrics(self, path, demand_mbps):
-        """
-        Çok Amaçlı Maliyet ve Metrikleri hesaplar, Talep (Demand) kısıtını kontrol eder.
-        """
+        with open(edge_file, 'r', encoding='utf-8-sig') as f:
+            reader = csv.DictReader(f)
+            reader.fieldnames = [n.strip() for n in reader.fieldnames]
+            for r in reader:
+                u = int(r["src"])
+                v = int(r["dst"])
+                props = {
+                    "bw": float(r["capacity_mbps"]),
+                    "delay": float(r["delay_ms"]),
+                    "r_link": float(r["r_link"])
+                }
+                self.edges.setdefault(u, {})[v] = props
+                self.edges.setdefault(v, {})[u] = props  # çift yönlü
+
+    def calculate_metrics(self, path):
         if not path or len(path) < 2:
-            return float('inf'), 0, 0, 0, False # Geçersiz yol
-        
-        total_delay = 0
-        reliability_log_cost = 0 
-        resource_cost = 0
-        real_reliability = 1.0
+            return float("inf"), None
 
-        # Düğümlerin maliyetleri
-        for node in path[1:-1]:
-            props = self.graph.nodes[node]
-            total_delay += props['processing_delay']
-            reliability_log_cost += -math.log(props['reliability'])
-            real_reliability *= props['reliability']
+        total_delay = 0.0
+        reliability_cost = 0.0
+        resource_cost = 0.0
+        dest = path[-1]
 
-        # Bağlantıların maliyetleri ve Kısıt Kontrolü
         for i in range(len(path) - 1):
             u, v = path[i], path[i+1]
-            if not self.graph.has_edge(u, v):
-                return float('inf'), 0, 0, 0, False
-            
-            edge_props = self.graph.edges[u, v]
-            
-            # *** Yeni Kısıt Kontrolü (Talep kısıtını karşılıyor mu?) ***
-            if edge_props['capacity_mbps'] < demand_mbps:
-                return float('inf'), 0, 0, 0, False # Uygun değil!
-            
-            # Metrik Hesaplamaları
-            total_delay += edge_props['delay_ms']
-            reliability_log_cost += -math.log(edge_props['reliability'])
-            # Kaynak Maliyeti (1000 Mbps / Kapasite)
-            resource_cost += (1000.0 / edge_props['capacity_mbps'])
+            edge = self.edges[u][v]
+            node = self.nodes[v]
 
-        # Ağırlıklı Toplam Maliyet
-        total_fitness = (self.w_delay * total_delay) + \
-                        (self.w_reliability * reliability_log_cost) + \
-                        (self.w_resource * resource_cost)
-                        
-        return total_fitness, total_delay, real_reliability, resource_cost, True # True: Uygundur
+            total_delay += edge["delay"]
+            reliability_cost += -math.log(edge["r_link"])
+            resource_cost += MAX_BANDWIDTH_MBPS / edge["bw"]
 
+            if v != dest:
+                total_delay += node["s_ms"]
+                reliability_cost += -math.log(node["r_node"])
 
-    # =======================================================================
-    # *** BAŞLANGIÇ ÇÖZÜMÜ GÜNCELLEMESİ (Değişkenliği Artırır) ***
-    # =======================================================================
-    def get_random_path(self, source, target, demand, max_length=150, max_tries=50):
-        """
-        Kapasite kısıtını sağlayan kenarları kullanarak kaynak ve hedef arasında 
-        rastgele bir yürüyüş ile yol bulur.
-        """
-        # Hızlı erişim için geçerli komşuları önceden hesapla
-        valid_successors = {
-            u: [v for v in self.graph.successors(u) 
-                if self.graph.has_edge(u, v) and self.graph.edges[u, v]['capacity_mbps'] >= demand]
-            for u in self.graph.nodes
+        cost = (
+            W_DELAY * total_delay +
+            W_RELIABILITY * reliability_cost +
+            W_RESOURCE * resource_cost
+        )
+
+        return cost, {
+            "Cost": cost,
+            "Delay": total_delay,
+            "Reliability": math.exp(-reliability_cost),
+            "Resource": resource_cost
         }
 
-        for _ in range(max_tries):
-            path = [source]
-            current_node = source
-            
-            for _ in range(max_length):
-                
-                if current_node == target:
-                    return path
+# =================================================
+# VNS OPTIMIZER
+# =================================================
+class VNS:
+    def __init__(self, graph):
+        self.graph = graph
 
-                successors = valid_successors.get(current_node, [])
-                
-                if not successors:
-                    break # Çıkmaz sokak
-                
-                # Rastgele bir sonraki düğümü seç (geri döngüleri hafifçe engelle)
-                candidates = [n for n in successors if n not in path[-2:]]
-                
-                if not candidates:
-                    candidates = successors # Eğer geri döngüsüz yol yoksa, döngüye izin ver.
+    def initial_path(self, src, dst):
+        queue = deque([(src, [src])])
+        visited = {src}
 
-                next_node = random.choice(candidates)
-                
-                path.append(next_node)
-                current_node = next_node
+        while queue:
+            cur, path = queue.popleft()
+            if cur == dst:
+                return path
 
-        return None # Yol bulunamadı
+            nbrs = list(self.graph.edges[cur].keys())
+            random.shuffle(nbrs)
 
+            for n in nbrs:
+                if n not in visited:
+                    visited.add(n)
+                    queue.append((n, path + [n]))
+        return None
 
-    def get_initial_solution(self, source, target, demand):
-        """
-        Başlangıç çözümü: Önce rastgele bir yol bulmaya çalışır, bulamazsa en kısa yolu dener.
-        """
-        # 1. Aşama: Rastgele Çözüm (Değişkenlik için)
-        random_path = self.get_random_path(source, target, demand)
-        if random_path:
-            return random_path
+    def shake(self, path, k):
+        if len(path) < 4:
+            return path
 
-        # 2. Aşama: Deterministik En Kısa Yol (Yedek olarak)
-        print(f"Uyarı: Talep {demand} için rastgele yol bulunamadı, en kısa yol deneniyor.")
-        valid_edges = [(u, v) for u, v, data in self.graph.edges(data=True) if data['capacity_mbps'] >= demand]
-        temp_graph = nx.DiGraph(valid_edges)
-        
-        try:
-            # Kenar sayısına göre en kısa yolu bulur
-            return nx.shortest_path(temp_graph, source, target) 
-        except nx.NetworkXNoPath:
-            return None
-    # =======================================================================
-    # *** BAŞLANGIÇ ÇÖZÜMÜ GÜNCELLEMESİ SONU ***
-    # =======================================================================
-
-    # VNS Yardımcı Fonksiyonları (Talep (Demand) parametresi eklendi)
-    def shaking(self, path, k, demand):
         new_path = copy.deepcopy(path)
-        if len(new_path) < 4: return new_path
+        i = random.randint(1, len(new_path) - 3)
+        j = min(len(new_path) - 1, i + k + 1)
 
-        # Sarsıntı noktalarını belirle
-        i = random.randint(0, len(new_path) - 3)
-        # k'yı kullanarak daha büyük aralıklar seçmeye çalış (min 2, max k+2)
-        gap = random.randint(2, min(k + 2, len(new_path) - 1 - i)) 
-        j = i + gap
-        
-        start_node = new_path[i]
-        end_node = new_path[j]
-        
-        # Basitleştirilmiş Shaking: 
-        # nx.all_simple_paths yerine, rastgele yürüyüş ile segmenti yeniden bul
-        
-        # Kapasite kısıtını sağlayan rastgele bir ara yol bul
-        segment_path = self.get_random_path(start_node, end_node, demand, max_length=15, max_tries=10)
-        
-        if segment_path:
-            # Segmentin ilk ve son düğümlerini koruyarak yolu birleştir
-            final_path = new_path[:i] + segment_path + new_path[j+1:]
-            
-            # Oluşan yolun gerçekten Source'dan Target'a gittiğini kontrol etmeye gerek yok, 
-            # çünkü bu operasyon sadece bir segmenti değiştirir.
-            return final_path
-            
-        return new_path # Rastgele segment bulunamazsa orijinal yolu döndür
+        start = new_path[i - 1]
+        end = new_path[j]
 
-    def local_search(self, path, demand):
-        # ... (Önceki Local Search mantığı aynı kalır, ama fitness kontrolü demand'ı kullanır)
-        best_path = path
-        best_cost, _, _, _, is_feasible = self.calculate_metrics(path, demand)
-        
-        if not is_feasible: return path # Zaten uygun değilse iyileştirme yapamaz
+        sub = []
+        visited = set(new_path[:i])
 
-        # Kestirme denemesi (bir düğümü atlama)
-        if len(path) > 3:
-            for _ in range(5): 
-                idx = random.randint(1, len(path)-2)
-                # Kestirme denenecekse, bu kenarın da demand'ı karşılaması lazım.
-                if self.graph.has_edge(path[idx-1], path[idx+1]) and \
-                   self.graph.edges[path[idx-1], path[idx+1]]['capacity_mbps'] >= demand:
-                    
-                    neighbor = path[:idx] + path[idx+1:]
-                    cost, _, _, _, is_feasible = self.calculate_metrics(neighbor, demand)
-                    
-                    if is_feasible and cost < best_cost:
-                        best_cost = cost
-                        best_path = neighbor
-        return best_path
+        def dfs(cur):
+            if cur == end:
+                return True
+            if len(sub) > 6:
+                return False
+            nbrs = list(self.graph.edges[cur].keys())
+            random.shuffle(nbrs)
+            for n in nbrs:
+                if n not in visited:
+                    visited.add(n)
+                    sub.append(n)
+                    if dfs(n):
+                        return True
+                    sub.pop()
+                    visited.remove(n)
+            return False
 
-    def run_vns(self, source, target, demand, max_attempts=20):
-        """VNS Algoritmasının Ana Döngüsü"""
-        current_path = self.get_initial_solution(source, target, demand)
-        
-        if not current_path:
-            return None, float('inf'), 0, 0, 0, 0 # Başlangıç yolu bile bulunamadı
-        
-        best_path = current_path
-        best_cost, _, _, _, _ = self.calculate_metrics(best_path, demand)
-        
-        k_max = 10 # k_max'i artırarak daha büyük komşulukları keşfedebilirsiniz
-        
-        for iteration in range(max_attempts):
+        if dfs(start):
+            return new_path[:i] + sub + new_path[j:]
+        return path
+
+    def local_search(self, path):
+        best = path
+        best_cost, _ = self.graph.calculate_metrics(best)
+
+        improved = True
+        while improved:
+            improved = False
+            for i in range(len(best) - 2):
+                for j in range(i + 2, len(best)):
+                    u, v = best[i], best[j]
+                    if v in self.graph.edges[u]:
+                        cand = best[:i+1] + best[j:]
+                        cost, _ = self.graph.calculate_metrics(cand)
+                        if cost < best_cost:
+                            best = cand
+                            best_cost = cost
+                            improved = True
+                            break
+                if improved:
+                    break
+        return best
+
+    def run(self, src, dst):
+        path = self.initial_path(src, dst)
+        if not path:
+            return None, None
+
+        cost, _ = self.graph.calculate_metrics(path)
+        best_path, best_cost = path, cost
+
+        for _ in range(MAX_VNS_ITER):
             k = 1
-            while k <= k_max:
-                shaken_path = self.shaking(best_path, k, demand)
-                improved_path = self.local_search(shaken_path, demand)
-                
-                cost, delay, reliability, resource, is_feasible = self.calculate_metrics(improved_path, demand)
-                
-                if is_feasible and cost < best_cost:
-                    best_path = improved_path
-                    best_cost = cost
-                    k = 1 
+            while k <= K_MAX:
+                shaken = self.shake(best_path, k)
+                improved = self.local_search(shaken)
+                c, _ = self.graph.calculate_metrics(improved)
+                if c < best_cost:
+                    best_path, best_cost = improved, c
+                    k = 1
                 else:
-                    k += 1 
-            
-        # Son metrikleri hesapla
-        final_cost, final_delay, final_reliability, final_resource, is_feasible = self.calculate_metrics(best_path, demand)
-        
-        if not is_feasible: # Kontrol: VNS sonunda yol geçersiz kalmışsa
-             return None, float('inf'), 0, 0, 0, 0
-            
-        return best_path, final_cost, final_delay, final_reliability, final_resource, len(best_path)
+                    k += 1
 
+        return best_path, self.graph.calculate_metrics(best_path)
 
-# ---------------------------------------------------------
-# 3. ANA ÇALIŞTIRMA VE DENEY MODÜLÜ
-# ---------------------------------------------------------
+# =================================================
+# MAIN – SENARYO BAŞINA 20 RUN
+# =================================================
+def main():
+    print("📡 BSM307 – QoS Odaklı VNS (Senaryo Başına 20 Run)\n")
+
+    graph = NetworkGraph()
+    graph.load_data(NODE_FILE, EDGE_FILE)
+    vns = VNS(graph)
+
+    demands = []
+    with open(DEMAND_FILE, "r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        reader.fieldnames = [n.strip() for n in reader.fieldnames]
+        for r in reader:
+            demands.append((int(r["src"]), int(r["dst"])))
+
+    for i, (s, d) in enumerate(demands, start=1):
+        print("\n" + "-" * 55)
+        print(f"Senaryo {i}: S={s} D={d}")
+
+        best_path = None
+        best_cost = float("inf")
+        best_metrics = None
+
+        for _ in range(TEST_RUNS):
+            path, result = vns.run(s, d)
+            if path:
+                cost = result[1]["Cost"]
+                if cost < best_cost:
+                    best_cost = cost
+                    best_path = path
+                    best_metrics = result[1]
+
+        if best_path:
+            print("EN İYİ YOL :", " → ".join(map(str, best_path)))
+            print(f"Cost       : {best_metrics['Cost']:.4f}")
+            print(f"Delay      : {best_metrics['Delay']:.2f} ms")
+            print(f"Reliability: {best_metrics['Reliability']:.4f}")
+            print(f"Resource   : {best_metrics['Resource']:.2f}")
+        else:
+            print("❌ Yol bulunamadı")
+
+    print("\n✅ Program tamamlandı.")
 
 if __name__ == "__main__":
-    # 1. Proje verilerinden motoru başlat
-    NODE_FILE = "BSM307_317_Guz2025_TermProject_NodeData.csv"
-    EDGE_FILE = "BSM307_317_Guz2025_TermProject_EdgeData.csv"
-    DEMAND_FILE = "BSM307_317_Guz2025_TermProject_DemandData.csv"
-    
-    # VNS Motoru (Ağ Yükleniyor)
-    vns_engine = BSM307VNS(NODE_FILE, EDGE_FILE)
-    
-    # Talep verilerini yükle
-    demand_df = pd.read_csv(DEMAND_FILE)
-    
-    results = []
-    
-    print("\n" + "="*90)
-    print(f"VERİYE DAYALI VNS ALGORİTMASI - TOPLAM {len(demand_df)} TALEP ÇİFTİ ÜZERİNDE DENEY")
-    print("="*90)
-
-    # 2. Tüm talep çiftleri üzerinde döngü
-    for index, row in demand_df.iterrows():
-        S = int(row['src'])
-        D = int(row['dst'])
-        demand = row['demand_mbps']
-        
-        # Her bir talep çifti için 5 kere tekrar (Proje kuralına uygunluk için)
-        for run_id in range(1, 6):
-            
-            # Rastgeleliği maksimize etmek için her çalıştırmada random seed'i sıfırla
-            # (Eğer tam olarak aynı donanım ve OS'de iseniz, bu, her çalıştırmanın birbirinden
-            # farklı olmasını sağlamaz, ancak VNS'in farklı yollar bulma şansını artırır.)
-            random.seed(None)
-            
-            print(f"\n--- TALEP #{index+1} ({S} -> {D} | {demand} Mbps) | Tekrar #{run_id} ---")
-            
-            # 3. VNS'i Çalıştır
-            path, cost, delay, reliability, resource_cost, length = vns_engine.run_vns(S, D, demand, max_attempts=50)
-            
-            # Sonuçları kaydet
-            results.append({
-                'Talep ID': index+1,
-                'Kaynak': S,
-                'Hedef': D,
-                'Demand (Mbps)': demand,
-                'Tekrar': run_id,
-                'Maliyet (Fitness)': cost,
-                'Gecikme (ms)': delay,
-                'Güvenilirlik (%)': reliability * 100,
-                'Kaynak Maliyeti': resource_cost,
-                'Adım Sayısı': length
-            })
-            
-            # Terminale çıktı yazdır
-            if path and cost != float('inf'):
-                print(f"✅ Rota Bulundu ({length} Adım):")
-                print(f"   » Toplam Maliyet (Fitness): {cost:.4f}")
-                print(f"   » Toplam Gecikme:           {delay:.2f} ms")
-                print(f"   » Güvenilirlik:             %{reliability*100:.4f}")
-                print(f"   » Yol: {path}") # Yeni yol çıktısı
-            else:
-                print("❌ Geçerli ve kapasite kısıtını sağlayan rota bulunamadı.")
-
-
-    # 4. Genel Özet Tablosu
-    results_df = pd.DataFrame(results)
-    
-    # Başarısız olanları ayır
-    successful_runs = results_df[results_df['Maliyet (Fitness)'] != float('inf')]
-    
-    print("\n\n" + "="*90)
-    print("TOPLU DENEY SONUÇLARI ÖZETİ (Tüm Tekrarlar Dahil)")
-    print("="*90)
-    print(successful_runs.to_string())
-    
-    # Raporlama için faydalı olacak Ortalama Değerler
-    avg_results = successful_runs.groupby(['Talep ID', 'Kaynak', 'Hedef', 'Demand (Mbps)']).agg({
-        'Maliyet (Fitness)': 'mean',
-        'Gecikme (ms)': 'mean',
-        'Güvenilirlik (%)': 'mean',
-        'Adım Sayısı': 'mean'
-    }).reset_index()
-    
-    print("\n\n" + "="*90)
-    print("TALEP BAŞINA ORTALAMA SONUÇLAR (Raporlama İçin)")
-    print("="*90)
-
-    print(avg_results.round(4).to_string())
+    main()
