@@ -1,9 +1,9 @@
 import csv
 import math
 import random
-import time
 import copy
 import os
+import networkx as nx
 from collections import deque
 
 # =================================================
@@ -14,57 +14,42 @@ W_RELIABILITY = 0.33
 W_RESOURCE = 0.34
 MAX_BANDWIDTH_MBPS = 1000.0
 
-MAX_VNS_ITER = 20
-K_MAX = 3
 TEST_RUNS = 30
 
 # =================================================
-# DOSYA YOLLARI (TAŞINABİLİR)
+# DOSYA YOLLARI
 # =================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-NODE_FILE = os.path.join(BASE_DIR, "C:\\Users\\yigit\\OneDrive\\Masaüstü\\Vns_Algorithm\\Vns_Algorithm\\BSM307_317_Guz2025_TermProject_NodeData.csv")
-EDGE_FILE = os.path.join(BASE_DIR, "C:\\Users\\yigit\\OneDrive\\Masaüstü\\Vns_Algorithm\\Vns_Algorithm\\BSM307_317_Guz2025_TermProject_EdgeData.csv")
-DEMAND_FILE = os.path.join(BASE_DIR, "C:\\Users\\yigit\\OneDrive\\Masaüstü\Vns_Algorithm\\Vns_Algorithm\\BSM307_317_Guz2025_TermProject_DemandData.csv")
+NODE_FILE = r"BSM307_317_Guz2025_TermProject_NodeData.csv"
+EDGE_FILE = r"BSM307_317_Guz2025_TermProject_EdgeData.csv"
+DEMAND_FILE = r"BSM307_317_Guz2025_TermProject_DemandData.csv"
 
 # =================================================
 # NETWORK GRAPH
 # =================================================
 class NetworkGraph:
     def __init__(self):
-        self.nodes = {}
-        self.edges = {}
+        self.G = nx.Graph()
 
     def load_data(self, node_file, edge_file):
         with open(node_file, 'r', encoding='utf-8-sig') as f:
-            reader = csv.DictReader(f)
-            reader.fieldnames = [n.strip() for n in reader.fieldnames]
-            for r in reader:
-                nid = int(r["node_id"])
-                self.nodes[nid] = {
-                    "s_ms": float(r["s_ms"]),
-                    "r_node": float(r["r_node"])
-                }
-                self.edges.setdefault(nid, {})
+            for r in csv.DictReader(f):
+                self.G.add_node(
+                    int(r["node_id"]),
+                    s_ms=float(r["s_ms"]),
+                    r_node=float(r["r_node"])
+                )
 
         with open(edge_file, 'r', encoding='utf-8-sig') as f:
-            reader = csv.DictReader(f)
-            reader.fieldnames = [n.strip() for n in reader.fieldnames]
-            for r in reader:
-                u = int(r["src"])
-                v = int(r["dst"])
-                props = {
-                    "bw": float(r["capacity_mbps"]),
-                    "delay": float(r["delay_ms"]),
-                    "r_link": float(r["r_link"])
-                }
-                self.edges.setdefault(u, {})[v] = props
-                self.edges.setdefault(v, {})[u] = props  # çift yönlü
+            for r in csv.DictReader(f):
+                self.G.add_edge(
+                    int(r["src"]),
+                    int(r["dst"]),
+                    bw=float(r["capacity_mbps"]),
+                    delay=float(r["delay_ms"]),
+                    r_link=float(r["r_link"])
+                )
 
     def calculate_metrics(self, path):
-        if not path or len(path) < 2:
-            return float("inf"), None
-
         total_delay = 0.0
         reliability_cost = 0.0
         resource_cost = 0.0
@@ -72,8 +57,8 @@ class NetworkGraph:
 
         for i in range(len(path) - 1):
             u, v = path[i], path[i+1]
-            edge = self.edges[u][v]
-            node = self.nodes[v]
+            edge = self.G[u][v]
+            node = self.G.nodes[v]
 
             total_delay += edge["delay"]
             reliability_cost += -math.log(edge["r_link"])
@@ -83,11 +68,13 @@ class NetworkGraph:
                 total_delay += node["s_ms"]
                 reliability_cost += -math.log(node["r_node"])
 
+        noise = random.uniform(-0.01, 0.01)
+
         cost = (
             W_DELAY * total_delay +
             W_RELIABILITY * reliability_cost +
             W_RESOURCE * resource_cost
-        )
+        ) * (1 + noise)
 
         return cost, {
             "Cost": cost,
@@ -102,46 +89,53 @@ class NetworkGraph:
 class VNS:
     def __init__(self, graph):
         self.graph = graph
+        self.G = graph.G
 
     def initial_path(self, src, dst):
-        queue = deque([(src, [src])])
-        visited = {src}
+        paths = []
 
-        while queue:
-            cur, path = queue.popleft()
-            if cur == dst:
-                return path
+        for _ in range(5):
+            queue = deque([(src, [src])])
+            visited = {src}
 
-            nbrs = list(self.graph.edges[cur].keys())
-            random.shuffle(nbrs)
+            while queue:
+                cur, path = queue.popleft()
+                if cur == dst:
+                    paths.append(path)
+                    break
 
-            for n in nbrs:
-                if n not in visited:
-                    visited.add(n)
-                    queue.append((n, path + [n]))
-        return None
+                nbrs = list(self.G.neighbors(cur))
+                random.shuffle(nbrs)
+
+                for n in nbrs:
+                    if n not in visited:
+                        visited.add(n)
+                        queue.append((n, path + [n]))
+
+        return random.choice(paths) if paths else None
 
     def shake(self, path, k):
         if len(path) < 4:
             return path
 
-        new_path = copy.deepcopy(path)
-        i = random.randint(1, len(new_path) - 3)
-        j = min(len(new_path) - 1, i + k + 1)
+        i = random.randint(1, len(path) - 3)
+        j = min(len(path) - 1, i + k + random.randint(1, 3))
 
-        start = new_path[i - 1]
-        end = new_path[j]
+        start = path[i - 1]
+        end = path[j]
 
         sub = []
-        visited = set(new_path[:i])
+        visited = set(path[:i])
 
         def dfs(cur):
             if cur == end:
                 return True
-            if len(sub) > 6:
+            if len(sub) > random.randint(4, 10):
                 return False
-            nbrs = list(self.graph.edges[cur].keys())
+
+            nbrs = list(self.G.neighbors(cur))
             random.shuffle(nbrs)
+
             for n in nbrs:
                 if n not in visited:
                     visited.add(n)
@@ -153,29 +147,23 @@ class VNS:
             return False
 
         if dfs(start):
-            return new_path[:i] + sub + new_path[j:]
+            return path[:i] + sub + path[j:]
         return path
 
     def local_search(self, path):
         best = path
         best_cost, _ = self.graph.calculate_metrics(best)
 
-        improved = True
-        while improved:
-            improved = False
+        for _ in range(2):  # local search baskısını azalttık
             for i in range(len(best) - 2):
                 for j in range(i + 2, len(best)):
                     u, v = best[i], best[j]
-                    if v in self.graph.edges[u]:
+                    if self.G.has_edge(u, v):
                         cand = best[:i+1] + best[j:]
                         cost, _ = self.graph.calculate_metrics(cand)
                         if cost < best_cost:
                             best = cand
                             best_cost = cost
-                            improved = True
-                            break
-                if improved:
-                    break
         return best
 
     def run(self, src, dst):
@@ -183,17 +171,22 @@ class VNS:
         if not path:
             return None, None
 
-        cost, _ = self.graph.calculate_metrics(path)
-        best_path, best_cost = path, cost
+        best_path = path
+        best_cost, _ = self.graph.calculate_metrics(path)
+
+        MAX_VNS_ITER = random.randint(15, 30)
+        K_MAX = random.randint(3, 6)
 
         for _ in range(MAX_VNS_ITER):
             k = 1
             while k <= K_MAX:
                 shaken = self.shake(best_path, k)
                 improved = self.local_search(shaken)
-                c, _ = self.graph.calculate_metrics(improved)
-                if c < best_cost:
-                    best_path, best_cost = improved, c
+                cost, _ = self.graph.calculate_metrics(improved)
+
+                if cost < best_cost:
+                    best_path = improved
+                    best_cost = cost
                     k = 1
                 else:
                     k += 1
@@ -201,10 +194,10 @@ class VNS:
         return best_path, self.graph.calculate_metrics(best_path)
 
 # =================================================
-# MAIN – SENARYO BAŞINA 20 RUN
+# MAIN
 # =================================================
 def main():
-    print("📡 BSM307 – QoS Odaklı VNS (Senaryo Başına 20 Run)\n")
+    print("\n📡 QoS Aware Stochastic VNS\n")
 
     graph = NetworkGraph()
     graph.load_data(NODE_FILE, EDGE_FILE)
@@ -212,17 +205,15 @@ def main():
 
     demands = []
     with open(DEMAND_FILE, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        reader.fieldnames = [n.strip() for n in reader.fieldnames]
-        for r in reader:
+        for r in csv.DictReader(f):
             demands.append((int(r["src"]), int(r["dst"])))
 
     for i, (s, d) in enumerate(demands, start=1):
-        print("\n" + "-" * 55)
-        print(f"Senaryo {i}: S={s} D={d}")
+        print("\n" + "-" * 60)
+        print(f"Senaryo {i}: {s} → {d}")
 
-        best_path = None
         best_cost = float("inf")
+        best_path = None
         best_metrics = None
 
         for _ in range(TEST_RUNS):
@@ -234,14 +225,11 @@ def main():
                     best_path = path
                     best_metrics = result[1]
 
-        if best_path:
-            print("EN İYİ YOL :", " → ".join(map(str, best_path)))
-            print(f"Cost       : {best_metrics['Cost']:.4f}")
-            print(f"Delay      : {best_metrics['Delay']:.2f} ms")
-            print(f"Reliability: {best_metrics['Reliability']:.4f}")
-            print(f"Resource   : {best_metrics['Resource']:.2f}")
-        else:
-            print("❌ Yol bulunamadı")
+        print("EN İYİ YOL :", " → ".join(map(str, best_path)))
+        print(f"Cost       : {best_metrics['Cost']:.4f}")
+        print(f"Delay      : {best_metrics['Delay']:.2f} ms")
+        print(f"Reliability: {best_metrics['Reliability']:.4f}")
+        print(f"Resource   : {best_metrics['Resource']:.2f}")
 
     print("\n✅ Program tamamlandı.")
 
