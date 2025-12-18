@@ -197,7 +197,7 @@ class VNS:
 # MAIN
 # =================================================
 def main():
-    print("\n📡 QoS Aware Stochastic VNS\n")
+    print("\n📡 QoS Aware Stochastic VNS \n")
 
     graph = NetworkGraph()
     graph.load_data(NODE_FILE, EDGE_FILE)
