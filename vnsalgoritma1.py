@@ -5,7 +5,7 @@ import copy
 import os
 import networkx as nx
 from collections import deque
-
+#test deneme
 # =================================================
 # AYARLAR
 # =================================================
