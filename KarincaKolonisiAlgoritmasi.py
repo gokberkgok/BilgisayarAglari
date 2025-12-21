@@ -15,7 +15,6 @@ NODE_FILE   = os.path.join(BASE_DIR, "BSM307_317_Guz2025_TermProject_NodeData.cs
 EDGE_FILE   = os.path.join(BASE_DIR, "BSM307_317_Guz2025_TermProject_EdgeData.csv")
 DEMAND_FILE = os.path.join(BASE_DIR, "BSM307_317_Guz2025_TermProject_DemandData.csv")
 
-
 WEIGHTS = (0.33, 0.33, 0.34)  # (w_delay, w_rel, w_res)
 
 # =================================================
@@ -58,7 +57,6 @@ def create_graph_from_csv():
     return G
 
 def calculate_total_cost(G, path):
-    """PDF Madde 3: Toplam ağırlıklı maliyet hesaplar"""
     if not path: return float('inf')
     
     total_delay = 0
@@ -67,7 +65,6 @@ def calculate_total_cost(G, path):
     
     w_d, w_r, w_res = WEIGHTS
 
-    # Kenar (Link) maliyetleri
     for i in range(len(path) - 1):
         u, v = path[i], path[i+1]
         edge = G[u][v]
@@ -76,14 +73,11 @@ def calculate_total_cost(G, path):
         bw = edge.get("bandwidth", 100)
 
         total_delay += d
-        # [cite_start]Güvenilirlik (Çarpımsal -> Toplamsal dönüşüm) [cite: 52]
         if r <= 0: r = 0.0001
         rel_log_sum += -math.log(r)
-        # [cite_start]Kaynak Maliyeti (1000/BW) [cite: 57]
         if bw <= 0: bw = 0.1
         res_cost_sum += (1000.0 / bw)
 
-    # Düğüm (Node) maliyetleri
     for node in path:
         node_data = G.nodes[node]
         proc = node_data.get("processing_delay", 0)
@@ -96,21 +90,20 @@ def calculate_total_cost(G, path):
     return (w_d * total_delay) + (w_r * rel_log_sum) + (w_res * res_cost_sum)
 
 # =================================================
-#3. ACO ALGORİTMASI
+# 3. ACO ALGORİTMASI
 # =================================================
 
 class ACOSolver:
     @staticmethod
     def solve(graph, source, target, min_bw):
-        # Parametreler
-        num_ants = 20           # Karınca sayısı
-        num_iterations = 30     # İterasyon sayısı
-        alpha = 1.0             # Feromon etkisi
-        beta = 2.0              # Sezgisel (Heuristic) etkisi
-        evaporation = 0.1       # Buharlaşma oranı
-        Q = 100.0               # Feromon sabiti
-        tau_min = 0.1           # Min feromon (Stagnation önleme)
-        tau_max = 10.0          # Max feromon
+        num_ants = 20
+        num_iterations = 30
+        alpha = 1.0
+        beta = 2.0
+        evaporation = 0.1
+        Q = 100.0
+        tau_min = 0.1
+        tau_max = 10.0
 
         pheromones = defaultdict(lambda: 1.0)
         global_best_path = None
@@ -119,7 +112,6 @@ class ACOSolver:
         for _ in range(num_iterations):
             paths = []
             for _ in range(num_ants):
-                # Her karınca bir yol oluşturur
                 path = ACOSolver._ant_walk(graph, source, target, pheromones, alpha, beta, min_bw)
                 if path:
                     cost = calculate_total_cost(graph, path)
@@ -128,20 +120,17 @@ class ACOSolver:
                         global_best_cost = cost
                         global_best_path = list(path)
 
-            # 1. Buharlaşma (Evaporation)
             for k in list(pheromones.keys()):
                 pheromones[k] *= (1.0 - evaporation)
                 if pheromones[k] < tau_min: pheromones[k] = tau_min
 
-            # 2. Yerel Güncelleme (Tüm karıncalar)
             for p, c in paths:
                 deposit = Q / c if c > 0 else Q
                 for i in range(len(p)-1):
                     u, v = p[i], p[i+1]
-                    key = tuple(sorted((u,v))) # Yönsüz graf için sıralı tuple
+                    key = tuple(sorted((u,v)))
                     pheromones[key] = min(tau_max, pheromones[key] + deposit)
 
-            # 3. Global Best Takviyesi (En iyi yol ödüllendirilir)
             if global_best_path:
                 deposit = (Q / global_best_cost) * 2.0
                 for i in range(len(global_best_path)-1):
@@ -159,30 +148,25 @@ class ACOSolver:
         w_d, w_r, w_res = WEIGHTS
 
         while current != end:
-            # Sadece bant genişliği yeten ve ziyaret edilmemiş komşuları seç
             neighbors = [n for n in graph.neighbors(current) 
                          if n not in visited and graph[current][n].get('bandwidth', 0) >= min_bw]
             
-            if not neighbors: return None # Çıkmaz sokak (Dead end)
+            if not neighbors: return None
 
             probs = []
             denom = 0.0
             
-            # Olasılık hesaplama (Rulet Tekerleği)
             for n in neighbors:
                 edge = graph[current][n]
                 key = tuple(sorted((current, n)))
                 tau = pheromones[key]
                 
-                # Çok amaçlı Sezgisel (Heuristic - Eta)
                 d = edge.get('delay', 1); r = edge.get('reliability', 0.9); bw = edge.get('bandwidth', 100)
                 if r<=0: r=0.001
                 
-                # Tahmini yerel maliyet (Gecikme + Güvenilirlik + Kaynak)
                 local_cost = (w_d * d) + (w_r * -math.log(r)) + (w_res * (1000/bw))
                 eta = 1.0 / local_cost if local_cost > 0 else 1.0
                 
-                # Formül: P = (tau^alpha) * (eta^beta)
                 val = (tau ** alpha) * (eta ** beta)
                 probs.append(val)
                 denom += val
@@ -191,13 +175,12 @@ class ACOSolver:
             
             probs = [p/denom for p in probs]
             
-            # Bir sonraki düğümü seç
             next_node = random.choices(neighbors, weights=probs, k=1)[0]
             path.append(next_node)
             visited.add(next_node)
             current = next_node
             
-            if len(path) > 250: return None # Sonsuz döngü koruması
+            if len(path) > 250: return None
 
         return path
 
@@ -205,15 +188,15 @@ class ACOSolver:
 # MAIN (ÇALIŞTIRMA KISMI)
 # =================================================
 if __name__ == "__main__":
-    print("\n🐜 BSM307 - ACO Modülü (Terminal)")
+    print("BSM307 - ACO Modülü (Terminal)")
     print("===================================")
     
     G = create_graph_from_csv()
     if G.number_of_nodes() == 0:
-        print("❌ HATA: Node/Edge dosyaları okunamadı.")
+        print("HATA: Node/Edge dosyaları okunamadı.")
         exit()
         
-    print(f"✅ Graf Yüklendi: {G.number_of_nodes()} Düğüm, {G.number_of_edges()} Kenar\n")
+    print(f"Graf Yüklendi: {G.number_of_nodes()} Düğüm, {G.number_of_edges()} Kenar\n")
 
     while True:
         print("\nSEÇENEKLER:")
@@ -237,25 +220,26 @@ if __name__ == "__main__":
                 print("Karıncalar yola çıkıyor...")
                 start_t = time.time()
                 
-                # Sadece ACO Çalıştır
                 path, cost = ACOSolver.solve(G, S, D, min_bw=B)
                 
                 end_t = time.time()
 
                 if path:
-                    print(f"\n✅ ACO BAŞARILI:")
+                    print(f"\nACO BAŞARILI:")
                     print(f"   Süre: {(end_t-start_t)*1000:.2f} ms")
                     print(f"   Maliyet (Cost): {cost:.4f}")
-                    print(f"   Yol: {path}")
+                    # Burada zaten tam yol yazdırılıyordu:
+                    print(f"   En İyi Yol: {' -> '.join(map(str, path))}")
                 else:
-                    print(f"\n❌ ACO Yol Bulamadı (Bant genişliği yetersiz veya izole düğüm)!")
+                    print(f"\nACO Yol Bulamadı (Bant genişliği yetersiz veya izole düğüm)!")
             except ValueError:
                 print("Hatalı giriş! Lütfen sayı giriniz.")
 
         elif choice == '2':
             print("\n--- TOPLU TEST (DEMAND DATA) ---")
-            print(f"{'#':<4} {'S->D':<10} {'Bant':<8} | {'Durum':<10} {'Maliyet':<10} {'Süre (ms)':<10}")
-            print("-" * 65)
+            # BAŞLIK GÜNCELLENDİ: En sağa 'En İyi Yol' eklendi
+            print(f"{'#':<4} {'S->D':<10} {'Bant':<8} | {'Durum':<10} {'Maliyet':<10} {'Süre (ms)':<10} | {'En İyi Yol'}")
+            print("-" * 100)
             
             demands = []
             try:
@@ -266,7 +250,7 @@ if __name__ == "__main__":
                         if len(row) >= 3:
                             demands.append((int(row[0]), int(row[1]), float(row[2].replace(',','.'))))
             except FileNotFoundError:
-                print("❌ DemandData.csv bulunamadı!")
+                print("DemandData.csv bulunamadı!")
                 continue
 
             count = 0
@@ -274,7 +258,6 @@ if __name__ == "__main__":
                 count += 1
                 
                 start_t = time.time()
-                # Sadece ACO Çalıştır
                 path, cost = ACOSolver.solve(G, S, D, min_bw=B)
                 end_t = time.time()
                 
@@ -282,6 +265,13 @@ if __name__ == "__main__":
                 c_str = f"{cost:.2f}" if path else "-"
                 duration = (end_t - start_t) * 1000
                 
-                print(f"{count:<4} {S}->{D:<7} {int(B):<8} | {status:<10} {c_str:<10} {duration:<10.2f}")
+                # Yolu string haline getir: "8 -> 44 -> 55" gibi
+                if path:
+                    path_str = " -> ".join(map(str, path))
+                else:
+                    path_str = "Yol Bulunamadı"
                 
-    print("\n✅ Program Sonlandı.")
+                # ÇIKTI GÜNCELLENDİ: path_str eklendi
+                print(f"{count:<4} {S}->{D:<7} {int(B):<8} | {status:<10} {c_str:<10} {duration:<10.2f} | {path_str}")
+                
+    print("\nProgram Sonlandı.")
