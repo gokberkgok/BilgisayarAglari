@@ -70,13 +70,15 @@ def compute_cost(G, path):
     for i in range(len(path) - 1):
         u, v = path[i], path[i+1]
         e = G[u][v]
-        delay += e["delay"]
-        rel_cost += -math.log(max(e["reliability"], 1e-12))
+        # GUI uyumlu key isimleri
+        delay += e.get("link_delay", e.get("delay", 0))
+        rel_cost += -math.log(max(e.get("link_rel", e.get("reliability", 0.99)), 1e-12))
         res_cost += 1000 / max(e["bandwidth"], 1e-6)
 
     for n in path[1:-1]:
-        delay += G.nodes[n]["processing_delay"]
-        rel_cost += -math.log(max(G.nodes[n]["reliability"], 1e-12))
+        # GUI uyumlu key isimleri
+        delay += G.nodes[n].get("proc_delay", G.nodes[n].get("processing_delay", 0))
+        rel_cost += -math.log(max(G.nodes[n].get("node_rel", G.nodes[n].get("reliability", 0.99)), 1e-12))
 
     return (
         W_DELAY * delay +
@@ -116,8 +118,9 @@ def sarsa_route(G, S, D, min_bw, episodes=2000):
             path.append(next_state)
 
             if next_state == D:
+                # ✅ YENİ ÖDÜL TASARIMI: Hedefe ulaşma bonusu + yol maliyeti cezası
                 cost = compute_cost(G, path)
-                reward = 1000 / cost if cost > 0 else 0
+                reward = 1000 - cost  # Büyük bonus + maliyet cezası
                 Q[(state, action)] += alpha * (reward - Q[(state, action)])
 
                 if cost < best_cost:
@@ -127,6 +130,9 @@ def sarsa_route(G, S, D, min_bw, episodes=2000):
 
             next_neighbors = neighbors(next_state)
             if not next_neighbors:
+                # Çıkmaz sokak - büyük ceza
+                reward = -500
+                Q[(state, action)] += alpha * (reward - Q[(state, action)])
                 break
 
             if random.random() < epsilon:
@@ -134,8 +140,17 @@ def sarsa_route(G, S, D, min_bw, episodes=2000):
             else:
                 next_action = max(next_neighbors, key=lambda a: Q[(next_state, a)])
 
+            # ✅ YENİ ÖDÜL TASARIMI: Her adım için edge maliyetini cezalandır
+            edge = G[state][next_state]
+            edge_cost = (
+                W_DELAY * edge.get("link_delay", edge.get("delay", 0)) +
+                W_RELIABILITY * (-math.log(max(edge.get("link_rel", edge.get("reliability", 0.99)), 1e-12))) +
+                W_RESOURCE * (1000 / max(edge["bandwidth"], 1e-6))
+            )
+            reward = -edge_cost  # Negatif maliyet = ceza
+            
             Q[(state, action)] += alpha * (
-                -1 + gamma * Q[(next_state, next_action)] - Q[(state, action)]
+                reward + gamma * Q[(next_state, next_action)] - Q[(state, action)]
             )
 
             state, action = next_state, next_action
@@ -161,7 +176,7 @@ def load_demands():
 # MAIN
 # =================================================
 if __name__ == "__main__":
-    print("📡 QoS Tabanlı Yol Bulma – SARSA\n")
+    print("QoS Tabanlı Yol Bulma – SARSA\n")
 
     G = create_graph_from_csv()
     print(f"Graf yüklendi: {G.number_of_nodes()} düğüm, {G.number_of_edges()} kenar\n")
@@ -169,7 +184,7 @@ if __name__ == "__main__":
     # ------------------------------
     # KULLANICI MODU
     # ------------------------------
-    print("🎯 KULLANICI MODU (TEK ÇALIŞMA)")
+    print("KULLANICI MODU (TEK ÇALIŞMA)")
     S = int(input("Source: "))
     D = int(input("Destination: "))
     B = float(input("Bandwidth (Mbps): "))
@@ -177,16 +192,16 @@ if __name__ == "__main__":
     path, cost = sarsa_route(G, S, D, B)
 
     if path:
-        print("\n✅ EN İYİ YOL:")
+        print("\nEN İYİ YOL:")
         print(" → ".join(map(str, path)))
         print(f"Cost: {cost:.4f}")
     else:
-        print("❌ Yol bulunamadı")
+        print("Yol bulunamadı")
 
     # ------------------------------
     # TEST MODU – DEMAND CSV
     # ------------------------------
-    print("\n🧪 TEST MODU – DEMAND DATA\n")
+    print("\nTEST MODU – DEMAND DATA\n")
 
     demands = load_demands()
 
@@ -195,6 +210,6 @@ if __name__ == "__main__":
         if path:
             print(f"#{i:02d} {s}->{d} | Cost={cost:.4f}")
         else:
-            print(f"#{i:02d} {s}->{d} | ❌ Yol bulunamadı")
+            print(f"#{i:02d} {s}->{d} | Yol bulunamadı")
 
-    print("\n✅ Tüm testler tamamlandı.")
+    print("\nTüm testler tamamlandı.")

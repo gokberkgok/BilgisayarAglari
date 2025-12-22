@@ -43,8 +43,10 @@ def load_graph(node_csv, edge_csv):
     for _, r in nd.iterrows():
         G.add_node(
             safe_int(r["node_id"]),
-            processing_delay=safe_float(r["s_ms"]),
-            reliability=safe_float(r["r_node"])
+            proc_delay=safe_float(r["s_ms"]),
+            processing_delay=safe_float(r["s_ms"]),  # Backward compatibility
+            node_rel=safe_float(r["r_node"]),
+            reliability=safe_float(r["r_node"])  # Backward compatibility
         )
 
     for _, r in ed.iterrows():
@@ -52,8 +54,10 @@ def load_graph(node_csv, edge_csv):
             safe_int(r["src"]),
             safe_int(r["dst"]),
             bandwidth=safe_float(r["capacity_mbps"]),
-            delay=safe_float(r["delay_ms"]),
-            reliability=safe_float(r["r_link"])
+            link_delay=safe_float(r["delay_ms"]),
+            delay=safe_float(r["delay_ms"]),  # Backward compatibility
+            link_rel=safe_float(r["r_link"]),
+            reliability=safe_float(r["r_link"])  # Backward compatibility
         )
 
     return G
@@ -94,14 +98,15 @@ def check_bandwidth(G, path, bw):
 # QoS COST
 # =================================================
 def weighted_cost(G, path, w1, w2, w3):
-    delay = sum(G[u][v]["delay"] for u, v in zip(path, path[1:]))
-    delay += sum(G.nodes[n]["processing_delay"] for n in path[1:-1])
+    # GUI uyumlu key isimleri kullan (fallback ile)
+    delay = sum(G[u][v].get("link_delay", G[u][v].get("delay", 0)) for u, v in zip(path, path[1:]))
+    delay += sum(G.nodes[n].get("proc_delay", G.nodes[n].get("processing_delay", 0)) for n in path[1:-1])
 
     reliability = 0.0
     for u, v in zip(path, path[1:]):
-        reliability += -math.log(max(G[u][v]["reliability"], 1e-12))
+        reliability += -math.log(max(G[u][v].get("link_rel", G[u][v].get("reliability", 0.99)), 1e-12))
     for n in path:
-        reliability += -math.log(max(G.nodes[n]["reliability"], 1e-12))
+        reliability += -math.log(max(G.nodes[n].get("node_rel", G.nodes[n].get("reliability", 0.99)), 1e-12))
 
     resource = sum(1000.0 / G[u][v]["bandwidth"] for u, v in zip(path, path[1:]))
 
@@ -132,11 +137,29 @@ def genetic_algorithm(G, source, target, bw, w1, w2, w3,
 
         return None
 
+    # ✅ Başlangıç popülasyonu oluştur (timeout ile)
     population = []
-    while len(population) < pop_size:
+    max_attempts = pop_size * 20  # Daha fazla deneme
+    attempts = 0
+    
+    print(f"🔍 Popülasyon oluşturuluyor (hedef: {pop_size} birey)...")
+    
+    while len(population) < pop_size and attempts < max_attempts:
+        attempts += 1
         p = random_path()
         if p and check_bandwidth(G, p, bw):
             population.append(p)
+            if len(population) % 10 == 0:
+                print(f"  ✓ {len(population)} birey oluşturuldu...")
+    
+    print(f"📊 Popülasyon tamamlandı: {len(population)}/{pop_size} birey ({attempts} deneme)")
+    
+    # Yeterli popülasyon oluşturulamadıysa None döndür
+    min_required = max(3, pop_size // 20)  # En az 3 veya %5'i
+    if len(population) < min_required:
+        print(f"❌ Yetersiz popülasyon! En az {min_required} birey gerekli, sadece {len(population)} oluşturuldu")
+        print(f"💡 İpucu: Bandwidth kısıtı çok yüksek olabilir (şu an: {bw} Mbps)")
+        return None, float("inf")
 
     best_path = None
     best_cost = float("inf")

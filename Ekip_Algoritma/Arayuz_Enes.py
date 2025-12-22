@@ -9,6 +9,14 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 import pandas as pd
 
+# QoS maliyet hesaplama modülü
+from qos_maliyet import (
+    compute_edge_cost,
+    compute_path_cost,
+    validate_path_bandwidth,
+    compute_path_metrics
+)
+
 # Q-Learning modülünden gerekli fonksiyonları import et
 from Q_Learning_Gokberk_Gok_ import (
     QLearning, 
@@ -21,30 +29,42 @@ from Q_Learning_Gokberk_Gok_ import (
 
 # SARSA modülünden gerekli fonksiyonları import et
 import importlib.util
-spec = importlib.util.spec_from_file_location("sarsa_module", "Sarsa_Algoritmasi_Arayuzsuz_Oguzhan _Demirbas.py")
+import os
+sarsa_path = os.path.join(os.path.dirname(__file__), "Sarsa_Algoritmasi_Arayuzsuz_Oguzhan_Demirbas.py")
+spec = importlib.util.spec_from_file_location("sarsa_module", sarsa_path)
 sarsa_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sarsa_module)
 sarsa_route = sarsa_module.sarsa_route
 compute_cost_sarsa = sarsa_module.compute_cost
 
 # VNS modülünden gerekli sınıfları import et
-spec_vns = importlib.util.spec_from_file_location("vns_module", "VNS_Algorithm_Yigit_Emre.py")
+vns_path = os.path.join(os.path.dirname(__file__), "VNS_Algorithm_Yigit_Emre.py")
+spec_vns = importlib.util.spec_from_file_location("vns_module", vns_path)
 vns_module = importlib.util.module_from_spec(spec_vns)
 spec_vns.loader.exec_module(vns_module)
 NetworkGraph = vns_module.NetworkGraph
 VNS = vns_module.VNS
 
 # PSO modülünden gerekli sınıfları import et
-spec_pso = importlib.util.spec_from_file_location("pso_module", "Parcacık_Surusu_Optimizasyonu_Salim_Caner.py")
+pso_path = os.path.join(os.path.dirname(__file__), "Parcacık_Surusu_Optimizasyonu_Salim_Caner.py")
+spec_pso = importlib.util.spec_from_file_location("pso_module", pso_path)
 pso_module = importlib.util.module_from_spec(spec_pso)
 spec_pso.loader.exec_module(pso_module)
 PSO = pso_module.PSO
 
 # ACO modülünden gerekli sınıfları import et
-spec_aco = importlib.util.spec_from_file_location("aco_module", "Karınca_Kolonisi_Algoritmasi_Aivaz_Arysbay.py")
+aco_path = os.path.join(os.path.dirname(__file__), "Karınca_Kolonisi_Algoritmasi_Aivaz_Arysbay.py")
+spec_aco = importlib.util.spec_from_file_location("aco_module", aco_path)
 aco_module = importlib.util.module_from_spec(spec_aco)
 spec_aco.loader.exec_module(aco_module)
 ACOSolver = aco_module.ACOSolver
+
+# Genetik Algoritma modülünden gerekli fonksiyonları import et
+genetic_path = os.path.join(os.path.dirname(__file__), "Genetik_Algoritmasi_Azra_Kaya.py")
+spec_genetic = importlib.util.spec_from_file_location("genetic_module", genetic_path)
+genetic_module = importlib.util.module_from_spec(spec_genetic)
+spec_genetic.loader.exec_module(genetic_module)
+genetic_algorithm = genetic_module.genetic_algorithm
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -53,6 +73,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
+import time
 
 # ================================================================
 #                       NEON UI STYLE
@@ -95,6 +116,58 @@ QComboBox, QDoubleSpinBox, QSpinBox {
 }
 QComboBox::drop-down {
     border: 0px;
+}
+QComboBox QAbstractItemView {
+    background-color: #1a1a1a;
+    color: #ffffff;
+    selection-background-color: #bc13fe;
+    selection-color: #ffffff;
+    border: 1px solid #bc13fe;
+    font-size: 13px;
+}
+/* SpinBox Ok Butonları */
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 20px;
+    height: 14px;
+    border-left: 1px solid #bc13fe;
+    background-color: #1a1a1a;
+    border-top-right-radius: 4px;
+}
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
+    background-color: #bc13fe;
+}
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 20px;
+    height: 14px;
+    border-left: 1px solid #bc13fe;
+    background-color: #1a1a1a;
+    border-bottom-right-radius: 4px;
+}
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+    background-color: #bc13fe;
+}
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    image: url(none);
+    width: 10px;
+    height: 10px;
+    border-style: solid;
+    border-width: 0px 4px 6px 4px;
+    border-color: transparent transparent #ffffff transparent;
+}
+QSpinBox::up-arrow:hover, QDoubleSpinBox::up-arrow:hover {
+    border-color: transparent transparent #ffffff transparent;
+}
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    image: url(none);
+    width: 10px;
+    height: 10px;
+    border-style: solid;
+    border-width: 6px 4px 0px 4px;
+    border-color: #ffffff transparent transparent transparent;
 }
 QPushButton {
     background-color: #333;
@@ -234,7 +307,9 @@ class QLearningParamsDialog(QDialog):
         params_layout = QGridLayout()
         
         # Alpha (Öğrenme oranı)
-        params_layout.addWidget(QLabel("Alpha (Öğrenme Oranı):"), 0, 0)
+        lbl_alpha = QLabel("Alpha (Öğrenme Oranı):")
+        lbl_alpha.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_alpha, 0, 0)
         self.spin_alpha = QDoubleSpinBox()
         self.spin_alpha.setRange(0.001, 1.0)
         self.spin_alpha.setSingleStep(0.01)
@@ -243,7 +318,9 @@ class QLearningParamsDialog(QDialog):
         params_layout.addWidget(self.spin_alpha, 0, 1)
         
         # Gamma (İndirim faktörü)
-        params_layout.addWidget(QLabel("Gamma (İndirim Faktörü):"), 1, 0)
+        lbl_gamma = QLabel("Gamma (İndirim Faktörü):")
+        lbl_gamma.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_gamma, 1, 0)
         self.spin_gamma = QDoubleSpinBox()
         self.spin_gamma.setRange(0.1, 0.999)
         self.spin_gamma.setSingleStep(0.01)
@@ -252,7 +329,9 @@ class QLearningParamsDialog(QDialog):
         params_layout.addWidget(self.spin_gamma, 1, 1)
         
         # Epsilon (Keşif oranı)
-        params_layout.addWidget(QLabel("Epsilon (Keşif Oranı):"), 2, 0)
+        lbl_epsilon = QLabel("Epsilon (Keşif Oranı):")
+        lbl_epsilon.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_epsilon, 2, 0)
         self.spin_epsilon = QDoubleSpinBox()
         self.spin_epsilon.setRange(0.0, 1.0)
         self.spin_epsilon.setSingleStep(0.05)
@@ -261,7 +340,9 @@ class QLearningParamsDialog(QDialog):
         params_layout.addWidget(self.spin_epsilon, 2, 1)
         
         # Episodes
-        params_layout.addWidget(QLabel("Episodes (Eğitim Sayısı):"), 3, 0)
+        lbl_episodes = QLabel("Episodes (Eğitim Sayısı):")
+        lbl_episodes.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_episodes, 3, 0)
         self.spin_episodes = QSpinBox()
         self.spin_episodes.setRange(10, 1000)
         self.spin_episodes.setSingleStep(10)
@@ -269,7 +350,9 @@ class QLearningParamsDialog(QDialog):
         params_layout.addWidget(self.spin_episodes, 3, 1)
         
         # Max Steps
-        params_layout.addWidget(QLabel("Max Steps (Maks. Adım):"), 4, 0)
+        lbl_max_steps = QLabel("Max Steps (Maks. Adım):")
+        lbl_max_steps.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_max_steps, 4, 0)
         self.spin_max_steps = QSpinBox()
         self.spin_max_steps.setRange(50, 500)
         self.spin_max_steps.setSingleStep(10)
@@ -363,7 +446,9 @@ class SARSAParamsDialog(QDialog):
         params_layout = QGridLayout()
         
         # Alpha (Öğrenme oranı)
-        params_layout.addWidget(QLabel("Alpha (Öğrenme Oranı):"), 0, 0)
+        lbl_alpha = QLabel("Alpha (Öğrenme Oranı):")
+        lbl_alpha.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_alpha, 0, 0)
         self.spin_alpha = QDoubleSpinBox()
         self.spin_alpha.setRange(0.001, 1.0)
         self.spin_alpha.setSingleStep(0.01)
@@ -372,7 +457,9 @@ class SARSAParamsDialog(QDialog):
         params_layout.addWidget(self.spin_alpha, 0, 1)
         
         # Gamma (İndirim faktörü)
-        params_layout.addWidget(QLabel("Gamma (İndirim Faktörü):"), 1, 0)
+        lbl_gamma = QLabel("Gamma (İndirim Faktörü):")
+        lbl_gamma.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_gamma, 1, 0)
         self.spin_gamma = QDoubleSpinBox()
         self.spin_gamma.setRange(0.1, 0.999)
         self.spin_gamma.setSingleStep(0.01)
@@ -381,7 +468,9 @@ class SARSAParamsDialog(QDialog):
         params_layout.addWidget(self.spin_gamma, 1, 1)
         
         # Epsilon (Keşif oranı)
-        params_layout.addWidget(QLabel("Epsilon (Keşif Oranı):"), 2, 0)
+        lbl_epsilon = QLabel("Epsilon (Keşif Oranı):")
+        lbl_epsilon.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_epsilon, 2, 0)
         self.spin_epsilon = QDoubleSpinBox()
         self.spin_epsilon.setRange(0.0, 1.0)
         self.spin_epsilon.setSingleStep(0.05)
@@ -390,7 +479,9 @@ class SARSAParamsDialog(QDialog):
         params_layout.addWidget(self.spin_epsilon, 2, 1)
         
         # Episodes
-        params_layout.addWidget(QLabel("Episodes (Eğitim Sayısı):"), 3, 0)
+        lbl_episodes = QLabel("Episodes (Eğitim Sayısı):")
+        lbl_episodes.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_episodes, 3, 0)
         self.spin_episodes = QSpinBox()
         self.spin_episodes.setRange(100, 5000)
         self.spin_episodes.setSingleStep(100)
@@ -398,7 +489,9 @@ class SARSAParamsDialog(QDialog):
         params_layout.addWidget(self.spin_episodes, 3, 1)
         
         # Min Bandwidth
-        params_layout.addWidget(QLabel("Min Bandwidth (Mbps):"), 4, 0)
+        lbl_min_bw = QLabel("Min Bandwidth (Mbps):")
+        lbl_min_bw.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_min_bw, 4, 0)
         self.spin_min_bw = QDoubleSpinBox()
         self.spin_min_bw.setRange(0.1, 1000.0)
         self.spin_min_bw.setSingleStep(10.0)
@@ -491,7 +584,9 @@ class VNSParamsDialog(QDialog):
         params_layout = QGridLayout()
         
         # Max Iterations
-        params_layout.addWidget(QLabel("Max Iterations:"), 0, 0)
+        lbl_max_iter = QLabel("Max Iterations:")
+        lbl_max_iter.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_max_iter, 0, 0)
         self.spin_max_iter = QSpinBox()
         self.spin_max_iter.setRange(5, 100)
         self.spin_max_iter.setSingleStep(5)
@@ -499,7 +594,9 @@ class VNSParamsDialog(QDialog):
         params_layout.addWidget(self.spin_max_iter, 0, 1)
         
         # K Max (Neighborhood size)
-        params_layout.addWidget(QLabel("K Max (Komşuluk):"), 1, 0)
+        lbl_k_max = QLabel("K Max (Komşuluk):")
+        lbl_k_max.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_k_max, 1, 0)
         self.spin_k_max = QSpinBox()
         self.spin_k_max.setRange(1, 10)
         self.spin_k_max.setSingleStep(1)
@@ -507,7 +604,9 @@ class VNSParamsDialog(QDialog):
         params_layout.addWidget(self.spin_k_max, 1, 1)
         
         # Test Runs
-        params_layout.addWidget(QLabel("Test Runs:"), 2, 0)
+        lbl_test_runs = QLabel("Test Runs:")
+        lbl_test_runs.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_test_runs, 2, 0)
         self.spin_test_runs = QSpinBox()
         self.spin_test_runs.setRange(1, 10)
         self.spin_test_runs.setSingleStep(1)
@@ -595,7 +694,9 @@ class PSOParamsDialog(QDialog):
         params_layout = QGridLayout()
         
         # Parçacık Sayısı
-        params_layout.addWidget(QLabel("Number of Particles:"), 0, 0)
+        lbl_particles = QLabel("Number of Particles:")
+        lbl_particles.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_particles, 0, 0)
         self.spin_particles = QSpinBox()
         self.spin_particles.setRange(5, 100)
         self.spin_particles.setSingleStep(5)
@@ -603,7 +704,9 @@ class PSOParamsDialog(QDialog):
         params_layout.addWidget(self.spin_particles, 0, 1)
         
         # İterasyon Sayısı
-        params_layout.addWidget(QLabel("Iterations:"), 1, 0)
+        lbl_iterations = QLabel("Iterations:")
+        lbl_iterations.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_iterations, 1, 0)
         self.spin_iterations = QSpinBox()
         self.spin_iterations.setRange(10, 500)
         self.spin_iterations.setSingleStep(10)
@@ -611,7 +714,9 @@ class PSOParamsDialog(QDialog):
         params_layout.addWidget(self.spin_iterations, 1, 1)
         
         # Min Bandwidth Constraint
-        params_layout.addWidget(QLabel("Min Bandwidth (Mbps):"), 2, 0)
+        lbl_bw = QLabel("Min Bandwidth (Mbps):")
+        lbl_bw.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_bw, 2, 0)
         self.spin_bw = QDoubleSpinBox()
         self.spin_bw.setRange(0, 1000)
         self.spin_bw.setValue(self.min_bandwidth)
@@ -698,7 +803,9 @@ class ACOParamsDialog(QDialog):
         params_layout = QGridLayout()
         
         # Karınca Sayısı
-        params_layout.addWidget(QLabel("Karınca Sayısı (Ants):"), 0, 0)
+        lbl_ants = QLabel("Karınca Sayısı (Ants):")
+        lbl_ants.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_ants, 0, 0)
         self.spin_ants = QSpinBox()
         self.spin_ants.setRange(5, 200)
         self.spin_ants.setSingleStep(5)
@@ -706,7 +813,9 @@ class ACOParamsDialog(QDialog):
         params_layout.addWidget(self.spin_ants, 0, 1)
         
         # İterasyon Sayısı
-        params_layout.addWidget(QLabel("İterasyon (Iterations):"), 1, 0)
+        lbl_iterations = QLabel("İterasyon (Iterations):")
+        lbl_iterations.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_iterations, 1, 0)
         self.spin_iterations = QSpinBox()
         self.spin_iterations.setRange(10, 500)
         self.spin_iterations.setSingleStep(10)
@@ -714,7 +823,9 @@ class ACOParamsDialog(QDialog):
         params_layout.addWidget(self.spin_iterations, 1, 1)
         
         # Min Bandwidth Constraint
-        params_layout.addWidget(QLabel("Min Bandwidth (Mbps):"), 2, 0)
+        lbl_bw = QLabel("Min Bandwidth (Mbps):")
+        lbl_bw.setStyleSheet("color: #2a2a2a; font-weight: bold;")
+        params_layout.addWidget(lbl_bw, 2, 0)
         self.spin_bw = QDoubleSpinBox()
         self.spin_bw.setRange(0, 1000)
         self.spin_bw.setValue(self.min_bandwidth)
@@ -1075,23 +1186,6 @@ class CyberPunkApp(QMainWindow):
         v_algo.addWidget(self.combo_bulk_algo)
         ctrl_layout.addLayout(v_algo)
 
-        v_rep = QVBoxLayout()
-        v_rep.addWidget(QLabel("Tekrar Sayısı:"))
-        self.spin_repeat = QSpinBox()
-        self.spin_repeat.setRange(1, 1000)
-        self.spin_repeat.setValue(5)
-        self.spin_repeat.setMinimumWidth(80)
-        v_rep.addWidget(self.spin_repeat)
-        ctrl_layout.addLayout(v_rep)
-
-        v_info = QVBoxLayout()
-        self.lbl_csv_info = QLabel("DemandData.csv Bekleniyor...")
-        self.lbl_csv_info.setStyleSheet("color: #bc13fe; font-weight: bold;")
-        v_info.addWidget(self.lbl_csv_info)
-        
-        # Otomatik yükleme init'te yapılacak
-        ctrl_layout.addLayout(v_info)
-        
         ctrl_layout.addStretch()
 
         # 2. Butonlar (Sıralama: Başlat -> Temizle -> Kaydet)
@@ -1149,23 +1243,22 @@ class CyberPunkApp(QMainWindow):
         self.loaded_demands = []
         try:
              # Önce ; ayırıcı ile dene
+            demand_csv = os.path.join(os.path.dirname(__file__), "BSM307_317_Guz2025_TermProject_DemandData.csv")
             try:
-                df = pd.read_csv("BSM307_317_Guz2025_TermProject_DemandData.csv", sep=";", decimal=",")
-                if df.shape[1] < 3: df = pd.read_csv("BSM307_317_Guz2025_TermProject_DemandData.csv", sep=",", decimal=".")
+                df = pd.read_csv(demand_csv, sep=";", decimal=",")
+                if df.shape[1] < 3: df = pd.read_csv(demand_csv, sep=",", decimal=".")
             except:
-                df = pd.read_csv("BSM307_317_Guz2025_TermProject_DemandData.csv", sep=",", decimal=".")
+                df = pd.read_csv(demand_csv, sep=",", decimal=".")
 
             if len(df) > 0:
                 # DataFrame to list of lists (S, D, BW)
                 for _, row in df.iterrows():
                      self.loaded_demands.append([str(row.iloc[0]), str(row.iloc[1]), str(row.iloc[2])])
                 
-                self.lbl_csv_info.setText(f"DemandData.csv Yüklendi ({len(self.loaded_demands)} talep)")
                 self.log(f"✅ DemandData.csv yüklendi: {len(self.loaded_demands)} satır")
             else:
-                self.lbl_csv_info.setText("DemandData.csv Boş")
+                self.log("⚠️ DemandData.csv boş")
         except Exception as e:
-            self.lbl_csv_info.setText("DemandData.csv Bulunamadı")
             self.log(f"⚠️ DemandData.csv yüklenemedi: {e}")
 
     def clear_bulk_results(self):
@@ -1178,7 +1271,6 @@ class CyberPunkApp(QMainWindow):
 
     def run_bulk_test(self):
         algo_name = self.combo_bulk_algo.currentText()
-        repeat_count = self.spin_repeat.value()
         
         self.table_res.setRowCount(0) # Yeni test öncesi otomatik temizle
         
@@ -1198,13 +1290,8 @@ class CyberPunkApp(QMainWindow):
                     except ValueError:
                         continue
         else:
-            for _ in range(repeat_count):
-                s = random.randint(1, self.node_count)
-                d = random.randint(1, self.node_count)
-                while s == d:
-                    d = random.randint(1, self.node_count)
-                bw = f"{random.randint(10, 100)} Mbps"
-                scenarios.append((s, d, bw))
+            QMessageBox.warning(self, "Uyarı", "DemandData.csv yüklenemedi veya boş!")
+            return
 
         if not scenarios:
              QMessageBox.warning(self, "Uyarı", "Test edilecek veri yok veya CSV boş.")
@@ -1231,6 +1318,10 @@ class CyberPunkApp(QMainWindow):
                 item = QTableWidgetItem(val)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table_res.setItem(row_idx, col, item)
+            
+            # UI'yi güncelle ve 1 saniye bekle
+            QApplication.processEvents()
+            time.sleep(1)
 
         QMessageBox.information(self, "Tamamlandı", f"Toplam {len(scenarios)} test tamamlandı.")
 
@@ -1289,20 +1380,22 @@ class CyberPunkApp(QMainWindow):
         csv_success = False
         try:
             # 1. NODE DATA OKUMA
+            node_csv = os.path.join(os.path.dirname(__file__), "BSM307_317_Guz2025_TermProject_NodeData.csv")
             try:
-                df_nodes = pd.read_csv("BSM307_317_Guz2025_TermProject_NodeData.csv", sep=";", decimal=",")
+                df_nodes = pd.read_csv(node_csv, sep=";", decimal=",")
                 if df_nodes.shape[1] < 3: 
-                    df_nodes = pd.read_csv("BSM307_317_Guz2025_TermProject_NodeData.csv", sep=",", decimal=".")
+                    df_nodes = pd.read_csv(node_csv, sep=",", decimal=".")
             except:
-                df_nodes = pd.read_csv("BSM307_317_Guz2025_TermProject_NodeData.csv", sep=",", decimal=".")
+                df_nodes = pd.read_csv(node_csv, sep=",", decimal=".")
 
             # 2. EDGE DATA OKUMA
+            edge_csv = os.path.join(os.path.dirname(__file__), "BSM307_317_Guz2025_TermProject_EdgeData.csv")
             try:
-                df_edges = pd.read_csv("BSM307_317_Guz2025_TermProject_EdgeData.csv", sep=";", decimal=",")
+                df_edges = pd.read_csv(edge_csv, sep=";", decimal=",")
                 if df_edges.shape[1] < 5: 
-                    df_edges = pd.read_csv("BSM307_317_Guz2025_TermProject_EdgeData.csv", sep=",", decimal=".")
+                    df_edges = pd.read_csv(edge_csv, sep=",", decimal=".")
             except:
-                df_edges = pd.read_csv("BSM307_317_Guz2025_TermProject_EdgeData.csv", sep=",", decimal=".")
+                df_edges = pd.read_csv(edge_csv, sep=",", decimal=".")
             
             if df_nodes.shape[1] >= 3 and df_edges.shape[1] >= 5:
                 # Grafı sıfırdan oluştur
@@ -1327,12 +1420,16 @@ class CyberPunkApp(QMainWindow):
                         l_rel = float(row.iloc[4])
                         
                         self.G.add_edge(u, v, 
-                            weight=random.randint(1, 10), 
                             bandwidth=bw,
                             link_delay=l_delay,
                             link_rel=l_rel
                         )
                     except: continue
+                
+                # Tüm edge'lere QoS tabanlı weight ekle
+                for u, v in self.G.edges():
+                    qos_cost = compute_edge_cost(self.G, u, v, weights={'delay': 1.0, 'reliability': 1.0, 'resource': 1.0})
+                    self.G[u][v]['weight'] = qos_cost
                 
                 self.node_count = self.G.number_of_nodes()
                 if self.node_count > 0 and self.G.number_of_edges() > 0:
@@ -1353,10 +1450,14 @@ class CyberPunkApp(QMainWindow):
                 self.G.nodes[n]['node_rel'] = random.uniform(0.95, 0.999)
             
             for u, v in self.G.edges():
-                self.G.edges[u, v]['weight'] = random.randint(1, 10)
                 self.G.edges[u, v]['bandwidth'] = random.uniform(100, 1000)
                 self.G.edges[u, v]['link_delay'] = random.uniform(3, 15)
                 self.G.edges[u, v]['link_rel'] = random.uniform(0.95, 0.999)
+            
+            # Tüm edge'lere QoS tabanlı weight ekle
+            for u, v in self.G.edges():
+                qos_cost = compute_edge_cost(self.G, u, v, weights={'delay': 1.0, 'reliability': 1.0, 'resource': 1.0})
+                self.G[u][v]['weight'] = qos_cost
         
         # Layout ve UI güncellemeleri
         self.pos = nx.spring_layout(self.G, k=0.03, iterations=800, seed=42, scale=1, center=(0, 0))
@@ -1459,87 +1560,144 @@ class CyberPunkApp(QMainWindow):
             elif "Q-Learning" in algo or algo.startswith("Q-"): path = self.run_qlearning(s, d)
             elif "Değişken" in algo or "VNS" in algo: path = self.run_vns(s, d)
             elif "Parçacık" in algo or "PSO" in algo: path = self.run_pso(s, d)
-            else: path = nx.shortest_path(self.G, s, d, weight='weight')
+            else: 
+                # Bilinmeyen algoritma - QoS tabanlı shortest path kullan
+                path = nx.shortest_path(self.G, s, d, weight='weight')
             
             # Süre ölçümü bitir
             elapsed_time = time.time() - start_time
             self.lbl_analysis_time.setText(f"{elapsed_time:.2f}s")
             
-            if not path or len(path) == 0: path = nx.shortest_path(self.G, s, d, weight='weight')
+            # Yol bulunamadıysa kullanıcıyı uyar
+            if not path or len(path) == 0:
+                self.log(f"⚠️ UYARI: {algo} algoritması yol bulamadı!")
+                QMessageBox.warning(self, "Yol Bulunamadı", 
+                                  f"{algo} algoritması kaynak {s+1}'den hedef {d+1}'e giden bir yol bulamadı.\n\n"
+                                  f"Lütfen farklı kaynak/hedef veya farklı algoritma deneyin.")
+                return
             
             # Analiz çubuğunu güncelle - Yol uzunluğu
             self.lbl_analysis_path_len.setText(f"{len(path) - 1} hop ({len(path)} düğüm)")
             
-            # Q-Learning için gerçek metrikleri hesapla
-            if "Q-Learning" in algo or algo.startswith("Q-"):
-                try:
-                    delay = path_total_delay(self.G, path)
-                    rel_cost = path_reliability_cost(self.G, path)
-                    res_cost = path_resource_cost(self.G, path)
-                    
-                    # Toplam maliyet hesapla
-                    w_delay = self.spin_delay.value()
-                    w_rel = self.spin_rel.value()
-                    w_res = self.spin_res.value()
-                    total_cost_val = total_cost(self.G, path, w_delay, w_rel, w_res)
-                    
-                    self.lbl_val_delay.setText(f"{delay:.2f} ms")
-                    self.lbl_val_rel.setText(f"{rel_cost:.4f}")
-                    self.lbl_val_cost.setText(f"{res_cost:.2f}")
-                    self.lbl_val_len.setText(str(len(path) - 1))
-                    
-                    # Analiz çubuğunu güncelle
-                    self.lbl_analysis_cost.setText(f"{total_cost_val:.4f}")
-                    self.lbl_analysis_status.setText("✅ Başarılı")
-                except Exception as e:
-                    print(f"Metrik hesaplama hatası: {e}")
-                    # Hata durumunda rastgele değerler göster
-                    self.lbl_val_delay.setText(f"{random.randint(50, 150)} ms")
-                    self.lbl_val_rel.setText(f"%{random.randint(90, 99)}")
-                    self.lbl_val_cost.setText(f"{random.randint(500, 2000)}")
-                    self.lbl_val_len.setText(str(len(path) - 1))
-                    self.lbl_analysis_cost.setText("Hesaplanamadı")
-                    self.lbl_analysis_status.setText("⚠️ Kısmi Başarı")
-            elif ("Karınca" in algo or "ACO" in algo) and hasattr(self, 'last_run_cost') and self.last_run_cost is not None:
-                # ACO Sonuçları
-                self.lbl_analysis_cost.setText(f"{self.last_run_cost:.4f}")
+            # ✅ BANDWIDTH KISITINI KONTROL ET
+            min_bw = self.spin_main_bw.value()
+            is_valid, invalid_edges = validate_path_bandwidth(self.G, path, min_bw)
+            
+            if not is_valid:
+                self.log(f"⚠️ UYARI: Yol bandwidth kısıtını ihlal ediyor!")
+                self.log(f"  Minimum gerekli: {min_bw} Mbps")
+                self.log(f"  Geçersiz edge'ler:")
+                for u, v, bw in invalid_edges:
+                    self.log(f"    {u} → {v}: {bw:.2f} Mbps < {min_bw} Mbps")
+                
+                QMessageBox.warning(self, "Bandwidth Kısıtı İhlali",
+                                  f"Bulunan yol bandwidth kısıtını sağlamıyor!\n\n"
+                                  f"Minimum gerekli: {min_bw} Mbps\n"
+                                  f"Geçersiz edge sayısı: {len(invalid_edges)}\n\n"
+                                  f"Yol çizilebilir ancak geçerli değildir.")
+            
+            # ✅ TÜM ALGORİTMALAR İÇİN GERÇEK METRİKLERİ HESAPLA
+            try:
+                # qos_maliyet modülünden gerçek metrikleri hesapla
+                metrics = compute_path_metrics(self.G, path)
+                
+                delay = metrics['delay']
+                reliability = metrics['reliability']
+                resource_cost = metrics['resource_cost']
+                hop_count = metrics['hop_count']
+                
+                # Ağırlıklarla toplam maliyet hesapla
+                w_delay = self.spin_delay.value()
+                w_rel = self.spin_rel.value()
+                w_res = self.spin_res.value()
+                
+                weights = {'delay': w_delay, 'reliability': w_rel, 'resource': w_res}
+                cost_info = compute_path_cost(self.G, path, weights)
+                total_cost_val = cost_info['total_cost']
+                
+                # GUI'ye gerçek değerleri yazdır
+                self.lbl_val_delay.setText(f"{delay:.2f} ms")
+                self.lbl_val_rel.setText(f"{reliability*100:.2f}%")  # Güvenilirlik yüzde olarak
+                self.lbl_val_cost.setText(f"{resource_cost:.2f}")
+                self.lbl_val_len.setText(str(hop_count))
+                
+                # Analiz çubuğunu güncelle
+                self.lbl_analysis_cost.setText(f"{total_cost_val:.4f}")
                 self.lbl_analysis_status.setText("✅ Başarılı")
                 
-                self.lbl_val_delay.setText(f"{random.randint(50, 150)} ms")
-                self.lbl_val_rel.setText(f"%{random.randint(90, 99)}")
-                self.lbl_val_cost.setText(f"{random.randint(500, 2000)}")
-                self.lbl_val_len.setText(str(len(path) - 1))
-                self.last_run_cost = None # Reset
-
-            elif ("Parçacık" in algo or "PSO" in algo) and hasattr(self, 'last_run_cost') and self.last_run_cost is not None:
-                # PSO Sonuçları
-                self.lbl_analysis_cost.setText(f"{self.last_run_cost:.4f}")
-                self.lbl_analysis_status.setText("✅ Başarılı")
+                self.log(f"📊 Yol Metrikleri:")
+                self.log(f"  Toplam Gecikme: {delay:.2f} ms")
+                self.log(f"  Güvenilirlik: {reliability*100:.2f}%")
+                self.log(f"  Kaynak Maliyeti: {resource_cost:.2f}")
+                self.log(f"  Hop Sayısı: {hop_count}")
+                self.log(f"  Toplam QoS Maliyeti: {total_cost_val:.4f}")
                 
-                self.lbl_val_delay.setText(f"{random.randint(50, 150)} ms")
-                self.lbl_val_rel.setText(f"%{random.randint(90, 99)}")
-                self.lbl_val_cost.setText(f"{random.randint(500, 2000)}")
-                self.lbl_val_len.setText(str(len(path) - 1))
-                self.last_run_cost = None # Reset
-
-            else:
-                # Diğer algoritmalar için rastgele değerler
-                self.lbl_val_delay.setText(f"{random.randint(50, 150)} ms")
-                self.lbl_val_rel.setText(f"%{random.randint(90, 99)}")
-                self.lbl_val_cost.setText(f"{random.randint(500, 2000)}")
-                self.lbl_val_len.setText(str(len(path) - 1))
+            except Exception as e:
+                self.log(f"❌ Metrik hesaplama hatası: {e}")
+                import traceback
+                traceback.print_exc()
                 
-                # Analiz çubuğu için yaklaşık maliyet
-                approx_cost = random.uniform(100, 500)
-                self.lbl_analysis_cost.setText(f"~{approx_cost:.2f}")
-                self.lbl_analysis_status.setText("✅ Tamamlandı")
+                # Hata durumunda bile temel bilgileri göster
+                self.lbl_val_len.setText(str(len(path) - 1))
+                self.lbl_analysis_cost.setText("Hesaplanamadı")
+                self.lbl_analysis_status.setText("⚠️ Metrik Hatası")
             
             self.animate_path(path)
         except Exception as e:
             print("Hata:", e)
             self.draw_graph()
 
-    def run_genetic(self, s, d): return nx.shortest_path(self.G, s, d, weight='weight')
+    def run_genetic(self, s, d):
+        """Genetik Algoritma ile en iyi yolu bul"""
+        try:
+            # Parametre al
+            min_bw = self.spin_main_bw.value()
+            w_delay = self.spin_delay.value()
+            w_rel = self.spin_rel.value()
+            w_res = self.spin_res.value()
+            
+            self.log(f"\n{'='*60}")
+            self.log(f"🧬 GENETİK ALGORİTMA BAŞLIYOR...")
+            self.log(f"{'='*60}")
+            self.log(f"Kaynak: {s}, Hedef: {d}")
+            self.log(f"Ağırlıklar - Gecikme: {w_delay}, Güvenilirlik: {w_rel}, Kaynak: {w_res}")
+            self.log(f"Min Bandwidth: {min_bw} Mbps")
+            
+            # Önce basit yol kontrolü - networkx ile kontrol et
+            try:
+                simple_path = nx.shortest_path(self.G, s, d)
+                self.log(f"✓ Graf bağlantılı - NetworkX yol buldu: {len(simple_path)} düğüm")
+            except:
+                self.log(f"❌ HATA: Kaynak {s} ile hedef {d} arasında hiç yol yok!")
+                return None
+            
+            # Genetik algoritmasını çalıştır
+            self.log(f"⏳ Genetik algoritma çalışıyor (popülasyon: 60, nesil: 120)...")
+            best_path, best_cost = genetic_algorithm(
+                self.G, s, d, min_bw, 
+                w_delay, w_rel, w_res,
+                pop_size=60, generations=120, mutation_rate=0.2
+            )
+            
+            if best_path and len(best_path) > 1:
+                self.log(f"✅ Genetik Algoritma tamamlandı! Yol bulundu: {len(best_path)} düğüm")
+                self.log(f"Yol: {' → '.join(map(str, best_path[:5]))}{'...' if len(best_path) > 5 else ''}")
+                self.log(f"Maliyet: {best_cost:.4f}")
+                self.log(f"{'='*60}\n")
+                return best_path
+            else:
+                self.log(f"⚠️ Genetik Algoritma yol bulamadı")
+                self.log(f"Not: Graf bağlantılı ama bandwidth kısıtını sağlayan yol yok olabilir")
+                self.log(f"Çözüm: Bandwidth değerini düşürmeyi deneyin (şu an: {min_bw} Mbps)")
+                self.log(f"{'='*60}\n")
+                return None
+                
+        except Exception as e:
+            self.log(f"❌ Genetik Algoritma hatası: {e}")
+            import traceback
+            traceback.print_exc()
+            self.log(f"{'='*60}\n")
+            return None
     def run_sarsa(self, s, d):
         """SARSA algoritması ile en iyi yolu bul"""
         try:
@@ -1547,8 +1705,8 @@ class CyberPunkApp(QMainWindow):
             default_bw = self.spin_main_bw.value()
             dialog = SARSAParamsDialog(self, default_bw=default_bw)
             if dialog.exec() != QDialog.DialogCode.Accepted:
-                self.log("⚠️ Kullanıcı parametreleri iptal etti, en kısa yol kullanılıyor")
-                return nx.shortest_path(self.G, s, d, weight='weight')
+                self.log("⚠️ Kullanıcı SARSA parametrelerini iptal etti")
+                return None
             
             # Kullanıcının seçtiği parametreleri al
             params = dialog.get_params()
@@ -1577,27 +1735,29 @@ class CyberPunkApp(QMainWindow):
                 self.log(f"{'='*60}\n")
                 return best_path
             else:
-                self.log(f"⚠️ SARSA yol bulamadı, en kısa yol kullanılıyor")
+                self.log(f"⚠️ SARSA yol bulamadı")
                 self.log(f"{'='*60}\n")
-                return nx.shortest_path(self.G, s, d, weight='weight')
+                return None
                 
         except Exception as e:
             self.log(f"❌ SARSA hatası: {e}")
             import traceback
             traceback.print_exc()
             self.log(f"{'='*60}\n")
-            # Hata durumunda fallback olarak en kısa yolu kullan
-            return nx.shortest_path(self.G, s, d, weight='weight')
-    def run_aco(self, s, d): return nx.shortest_path(self.G, s, d, weight='weight')
+            return None
+    def run_aco_placeholder(self, s, d):
+        """ACO Algoritma placeholder - Henüz başka bir run_aco var"""
+        self.log("⚠️ ACO algoritma henüz implement edilmedi")
+        return None
     def run_qlearning(self, s, d):
         """Q-Learning algoritması ile en iyi yolu bul"""
         try:
             # Parametre dialogunu göster
             dialog = QLearningParamsDialog(self)
             if dialog.exec() != QDialog.DialogCode.Accepted:
-                # Kullanıcı iptal etti, en kısa yolu kullan
-                print("⚠️ Kullanıcı parametreleri iptal etti, en kısa yol kullanılıyor")
-                return nx.shortest_path(self.G, s, d, weight='weight')
+                # Kullanıcı iptal etti
+                print("⚠️ Kullanıcı Q-Learning parametrelerini iptal etti")
+                return None
             
             # Kullanıcının seçtiği parametreleri al
             params = dialog.get_params()
@@ -1635,24 +1795,23 @@ class CyberPunkApp(QMainWindow):
                 self.log(f"{'='*60}\n")
                 return best_path
             else:
-                self.log(f"⚠️ Q-Learning yol bulamadı, en kısa yol kullanılıyor")
+                self.log(f"⚠️ Q-Learning yol bulamadı")
                 self.log(f"{'='*60}\n")
-                return nx.shortest_path(self.G, s, d, weight='weight')
+                return None
                 
         except Exception as e:
             self.log(f"❌ Q-Learning hatası: {e}")
             self.log(f"{'='*60}\n")
-            # Hata durumunda fallback olarak en kısa yolu kullan
-            return nx.shortest_path(self.G, s, d, weight='weight')
+            return None
     def run_vns(self, s, d):
         """VNS algoritması ile en iyi yolu bul"""
         try:
             # Parametre dialogunu göster
             dialog = VNSParamsDialog(self)
             if dialog.exec() != QDialog.DialogCode.Accepted:
-                # Kullanıcı iptal etti, en kısa yolu kullan
-                self.log("⚠️ Kullanıcı parametreleri iptal etti, en kısa yol kullanılıyor")
-                return nx.shortest_path(self.G, s, d, weight='weight')
+                # Kullanıcı iptal etti
+                self.log("⚠️ Kullanıcı VNS parametrelerini iptal etti")
+                return None
             
             # Kullanıcının seçtiği parametreleri al
             params = dialog.get_params()
@@ -1720,17 +1879,16 @@ class CyberPunkApp(QMainWindow):
                 self.log(f"{'='*60}\n")
                 return best_path
             else:
-                self.log(f"⚠️ VNS yol bulamadı, en kısa yol kullanılıyor")
+                self.log(f"⚠️ VNS yol bulamadı")
                 self.log(f"{'='*60}\n")
-                return nx.shortest_path(self.G, s, d, weight='weight')
+                return None
                 
         except Exception as e:
             self.log(f"❌ VNS hatası: {e}")
             import traceback
             traceback.print_exc()
             self.log(f"{'='*60}\n")
-            # Hata durumunda fallback olarak en kısa yolu kullan
-            return nx.shortest_path(self.G, s, d, weight='weight')
+            return None
     def run_pso(self, s, d):
         """PSO algoritması ile en iyi yolu bul"""
         try:
@@ -1738,8 +1896,8 @@ class CyberPunkApp(QMainWindow):
             default_bw = self.spin_main_bw.value()
             dialog = PSOParamsDialog(self, default_bw=default_bw)
             if dialog.exec() != QDialog.DialogCode.Accepted:
-                self.log("⚠️ Kullanıcı parametreleri iptal etti, en kısa yol kullanılıyor")
-                return nx.shortest_path(self.G, s, d, weight='weight')
+                self.log("⚠️ Kullanıcı PSO parametrelerini iptal etti")
+                return None
             
             # Parametreleri al
             params = dialog.get_params()
@@ -1786,18 +1944,16 @@ class CyberPunkApp(QMainWindow):
                 self.log(f"{'='*60}\n")
                 return path
             else:
-                self.log(f"⚠️ PSO yol bulamadı, en kısa yol kullanılıyor")
+                self.log(f"⚠️ PSO yol bulamadı")
                 self.log(f"{'='*60}\n")
-                return nx.shortest_path(self.G, s, d, weight='weight')
+                return None
                 
         except Exception as e:
             self.log(f"❌ PSO hatası: {e}")
             import traceback
             traceback.print_exc()
             self.log(f"{'='*60}\n")
-            return nx.shortest_path(self.G, s, d, weight='weight')
-
-            return nx.shortest_path(self.G, s, d, weight='weight')
+            return None
 
     def run_aco(self, s, d):
         """ACO algoritması ile en iyi yolu bul"""
@@ -1806,8 +1962,8 @@ class CyberPunkApp(QMainWindow):
             default_bw = self.spin_main_bw.value()
             dialog = ACOParamsDialog(self, default_bw=default_bw)
             if dialog.exec() != QDialog.DialogCode.Accepted:
-                self.log("⚠️ Kullanıcı parametreleri iptal etti, en kısa yol kullanılıyor")
-                return nx.shortest_path(self.G, s, d, weight='weight')
+                self.log("⚠️ Kullanıcı ACO parametrelerini iptal etti")
+                return None
             
             # Parametreleri al
             params = dialog.get_params()
@@ -1862,16 +2018,16 @@ class CyberPunkApp(QMainWindow):
                 self.log(f"{'='*60}\n")
                 return path
             else:
-                self.log(f"⚠️ ACO yol bulamadı, en kısa yol kullanılıyor")
+                self.log(f"⚠️ ACO yol bulamadı")
                 self.log(f"{'='*60}\n")
-                return nx.shortest_path(self.G, s, d, weight='weight')
+                return None
                 
         except Exception as e:
             self.log(f"❌ ACO hatası: {e}")
             import traceback
             traceback.print_exc()
             self.log(f"{'='*60}\n")
-            return nx.shortest_path(self.G, s, d, weight='weight')
+            return None
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
