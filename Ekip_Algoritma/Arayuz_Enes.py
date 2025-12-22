@@ -125,49 +125,14 @@ QComboBox QAbstractItemView {
     border: 1px solid #bc13fe;
     font-size: 13px;
 }
-/* SpinBox Ok Butonları */
+/* SpinBox Ok Butonları - Gizli */
 QSpinBox::up-button, QDoubleSpinBox::up-button {
-    subcontrol-origin: border;
-    subcontrol-position: top right;
-    width: 20px;
-    height: 14px;
-    border-left: 1px solid #bc13fe;
-    background-color: #1a1a1a;
-    border-top-right-radius: 4px;
-}
-QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
-    background-color: #bc13fe;
+    width: 0px;
+    border: none;
 }
 QSpinBox::down-button, QDoubleSpinBox::down-button {
-    subcontrol-origin: border;
-    subcontrol-position: bottom right;
-    width: 20px;
-    height: 14px;
-    border-left: 1px solid #bc13fe;
-    background-color: #1a1a1a;
-    border-bottom-right-radius: 4px;
-}
-QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
-    background-color: #bc13fe;
-}
-QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
-    image: url(none);
-    width: 10px;
-    height: 10px;
-    border-style: solid;
-    border-width: 0px 4px 6px 4px;
-    border-color: transparent transparent #ffffff transparent;
-}
-QSpinBox::up-arrow:hover, QDoubleSpinBox::up-arrow:hover {
-    border-color: transparent transparent #ffffff transparent;
-}
-QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
-    image: url(none);
-    width: 10px;
-    height: 10px;
-    border-style: solid;
-    border-width: 6px 4px 0px 4px;
-    border-color: #ffffff transparent transparent transparent;
+    width: 0px;
+    border: none;
 }
 QPushButton {
     background-color: #333;
@@ -410,7 +375,7 @@ class QLearningParamsDialog(QDialog):
 class SARSAParamsDialog(QDialog):
     """SARSA hiperparametrelerini ayarlamak için dialog penceresi"""
     
-    def __init__(self, parent=None, default_bw=10.0):
+    def __init__(self, parent=None, default_bw=100.0):
         super().__init__(parent)
         self.setWindowTitle("SARSA Parametreleri")
         self.setModal(True)
@@ -1003,7 +968,7 @@ class CyberPunkApp(QMainWindow):
         grid.addWidget(QLabel("Min BW (Mbps):"), 2, 0)
         self.spin_main_bw = QDoubleSpinBox()
         self.spin_main_bw.setRange(0, 10000)
-        self.spin_main_bw.setValue(10.0)
+        self.spin_main_bw.setValue(100.0)
         grid.addWidget(self.spin_main_bw, 2, 1)
         
         grp_nodes.setLayout(grid)
@@ -1041,6 +1006,7 @@ class CyberPunkApp(QMainWindow):
         left_layout.addWidget(self.btn_calc)
 
         grp_res = QGroupBox("Sonuç Metrikleri")
+        grp_res.setMaximumHeight(100)
         g = QGridLayout()
         self.lbl_val_delay = QLabel("-"); self.lbl_val_delay.setObjectName("ResultLabel")
         self.lbl_val_rel   = QLabel("-"); self.lbl_val_rel.setObjectName("ResultLabel")
@@ -1059,7 +1025,7 @@ class CyberPunkApp(QMainWindow):
         log_layout = QVBoxLayout()
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(150)
+        self.log_text.setMaximumHeight(300)
         self.log_text.setStyleSheet("""
             QTextEdit {
                 background-color: #0a0a0a;
@@ -1158,6 +1124,16 @@ class CyberPunkApp(QMainWindow):
         self.lbl_analysis_status.setStyleSheet("color: #ffaa00; font-style: italic; font-size: 14px;")
         self.lbl_analysis_status.setWordWrap(True)
         right_layout.addWidget(self.lbl_analysis_status)
+        
+        # 6. Yol (Path)
+        lbl_path_route_title = QLabel("Yol:")
+        lbl_path_route_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #aaa;")
+        right_layout.addWidget(lbl_path_route_title)
+        
+        self.lbl_analysis_path = QLabel("-")
+        self.lbl_analysis_path.setStyleSheet("color: #00e5ff; font-size: 12px;")
+        self.lbl_analysis_path.setWordWrap(True)
+        right_layout.addWidget(self.lbl_analysis_path)
         
         right_layout.addStretch()
         layout.addWidget(right_panel)
@@ -1625,12 +1601,17 @@ class CyberPunkApp(QMainWindow):
                 self.lbl_analysis_cost.setText(f"{total_cost_val:.4f}")
                 self.lbl_analysis_status.setText("✅ Başarılı")
                 
+                # Yolu göster (1-indexed)
+                path_str = " → ".join(str(node + 1) for node in path)
+                self.lbl_analysis_path.setText(path_str)
+                
                 self.log(f"📊 Yol Metrikleri:")
                 self.log(f"  Toplam Gecikme: {delay:.2f} ms")
                 self.log(f"  Güvenilirlik: {reliability*100:.2f}%")
                 self.log(f"  Kaynak Maliyeti: {resource_cost:.2f}")
                 self.log(f"  Hop Sayısı: {hop_count}")
                 self.log(f"  Toplam QoS Maliyeti: {total_cost_val:.4f}")
+                self.log(f"  Yol: {path_str}")
                 
             except Exception as e:
                 self.log(f"❌ Metrik hesaplama hatası: {e}")
@@ -1641,6 +1622,7 @@ class CyberPunkApp(QMainWindow):
                 self.lbl_val_len.setText(str(len(path) - 1))
                 self.lbl_analysis_cost.setText("Hesaplanamadı")
                 self.lbl_analysis_status.setText("⚠️ Metrik Hatası")
+                self.lbl_analysis_path.setText("-")
             
             self.animate_path(path)
         except Exception as e:
