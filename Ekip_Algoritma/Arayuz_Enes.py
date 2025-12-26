@@ -1438,7 +1438,7 @@ class CyberPunkApp(QMainWindow):
         # Layout ve UI güncellemeleri
         self.pos = nx.spring_layout(self.G, k=0.03, iterations=800, seed=42, scale=1, center=(0, 0))
         self.pos = self.compact_position(self.pos)
-        nodes = [str(i + 1) for i in range(self.node_count)]
+        nodes = [str(i) for i in range(self.node_count)]
         self.combo_source.addItems(nodes)
         self.combo_dest.addItems(nodes)
         self.combo_dest.setCurrentIndex(len(nodes) - 1)
@@ -1451,8 +1451,8 @@ class CyberPunkApp(QMainWindow):
         nx.draw_networkx_nodes(self.G, self.pos, ax=ax, node_color='#bc13fe', node_size=60, alpha=0.3)
         nx.draw_networkx_nodes(self.G, self.pos, ax=ax, node_color='#e040fb', node_size=15, alpha=1.0)
         
-        # Düğüm numaralarını ekle (1-indexed)
-        labels = {n: str(n + 1) for n in self.G.nodes()}
+        # Düğüm numaralarını ekle (0-indexed)
+        labels = {n: str(n) for n in self.G.nodes()}
         nx.draw_networkx_labels(self.G, self.pos, labels, ax=ax, font_size=6, font_color='white', font_weight='bold')
         
         if path:
@@ -1463,7 +1463,7 @@ class CyberPunkApp(QMainWindow):
             nx.draw_networkx_nodes(self.G, self.pos, ax=ax, nodelist=list(path), node_color='#00e5ff', node_size=80, alpha=0.9)
             
             # Yol üzerindeki düğümlerin numaralarını daha belirgin göster
-            path_labels = {n: str(n + 1) for n in path}
+            path_labels = {n: str(n) for n in path}
             nx.draw_networkx_labels(self.G, self.pos, path_labels, ax=ax, font_size=8, font_color='white', font_weight='bold')
         
         self.add_legend()
@@ -1489,7 +1489,7 @@ class CyberPunkApp(QMainWindow):
         nx.draw_networkx_nodes(self.G, self.pos, ax=ax, node_color='#e040fb', node_size=15, alpha=1.0)
         
         # Düğüm numaralarını ekle
-        labels = {n: str(n + 1) for n in self.G.nodes()}
+        labels = {n: str(n) for n in self.G.nodes()}
         nx.draw_networkx_labels(self.G, self.pos, labels, ax=ax, font_size=6, font_color='white', font_weight='bold')
         
         self.add_legend()
@@ -1520,8 +1520,8 @@ class CyberPunkApp(QMainWindow):
         if not self.validate_weights(): return
         import time
         try:
-            s = int(self.combo_source.currentText()) - 1
-            d = int(self.combo_dest.currentText()) - 1
+            s = int(self.combo_source.currentText())
+            d = int(self.combo_dest.currentText())
             algo = self.combo_algo.currentText()
             
             # Analiz çubuğunu güncelle - Algoritma adı
