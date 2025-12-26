@@ -181,6 +181,24 @@ QPushButton#SaveBtn {
 QPushButton#SaveBtn:hover {
     background-color: #bc13fe;
 }
+/* DURDUR BUTONU (TURUNCU) */
+QPushButton#PauseBtn {
+    background-color: #ff6f00;
+    color: white;
+    padding: 10px;
+}
+QPushButton#PauseBtn:hover {
+    background-color: #ff8f00;
+}
+/* DEVAM ET BUTONU (MAVİ) */
+QPushButton#ResumeBtn {
+    background-color: #0091ea;
+    color: white;
+    padding: 10px;
+}
+QPushButton#ResumeBtn:hover {
+    background-color: #00b0ff;
+}
 QLabel#ResultLabel {
     color: #bc13fe;
     font-weight: bold;
@@ -912,7 +930,8 @@ class CyberPunkApp(QMainWindow):
         self.G = None
         self.pos = None
         self.anim_timer = None
-        self.loaded_demands = None 
+        self.loaded_demands = None
+        self.test_paused = False 
 
         self.algo_list = [
             "Genetik Algoritma (Genetic Algorithm)",
@@ -1174,6 +1193,14 @@ class CyberPunkApp(QMainWindow):
         self.btn_start_bulk.clicked.connect(self.run_bulk_test)
         ctrl_layout.addWidget(self.btn_start_bulk)
 
+        # TESTİ DURDUR/DEVAM ET
+        self.btn_pause_bulk = QPushButton("⏸️ Testi Durdur")
+        self.btn_pause_bulk.setObjectName("PauseBtn")
+        self.btn_pause_bulk.setMinimumHeight(50)
+        self.btn_pause_bulk.setEnabled(False)
+        self.btn_pause_bulk.clicked.connect(self.toggle_pause_test)
+        ctrl_layout.addWidget(self.btn_pause_bulk)
+
         # TEMİZLE
         self.btn_clear_bulk = QPushButton("🗑️ Temizle")
         self.btn_clear_bulk.setObjectName("ClearBtn")
@@ -1245,10 +1272,29 @@ class CyberPunkApp(QMainWindow):
         else:
             QMessageBox.warning(self, "Uyarı", "Temizlenecek veri yok.")
 
+    def toggle_pause_test(self):
+        """Test durumunu durdur/devam et arasında değiştir"""
+        self.test_paused = not self.test_paused
+        if self.test_paused:
+            self.btn_pause_bulk.setText("▶️ Teste Devam Et")
+            self.btn_pause_bulk.setObjectName("ResumeBtn")
+        else:
+            self.btn_pause_bulk.setText("⏸️ Testi Durdur")
+            self.btn_pause_bulk.setObjectName("PauseBtn")
+        # Stil değişikliğini uygula
+        self.btn_pause_bulk.setStyleSheet("")
+        self.btn_pause_bulk.setStyleSheet(NEON_STYLE)
+
     def run_bulk_test(self):
         algo_name = self.combo_bulk_algo.currentText()
         
         self.table_res.setRowCount(0) # Yeni test öncesi otomatik temizle
+        self.test_paused = False # Test başlarken pause durumunu sıfırla
+        self.btn_pause_bulk.setEnabled(True) # Pause butonunu aktif et
+        self.btn_pause_bulk.setText("⏸️ Testi Durdur")
+        self.btn_pause_bulk.setObjectName("PauseBtn")
+        self.btn_pause_bulk.setStyleSheet("")
+        self.btn_pause_bulk.setStyleSheet(NEON_STYLE)
         
         scenarios = []
         if self.loaded_demands and len(self.loaded_demands) > 0:
@@ -1267,13 +1313,20 @@ class CyberPunkApp(QMainWindow):
                         continue
         else:
             QMessageBox.warning(self, "Uyarı", "DemandData.csv yüklenemedi veya boş!")
+            self.btn_pause_bulk.setEnabled(False)
             return
 
         if not scenarios:
              QMessageBox.warning(self, "Uyarı", "Test edilecek veri yok veya CSV boş.")
+             self.btn_pause_bulk.setEnabled(False)
              return
 
         for i, (s, d, bw) in enumerate(scenarios):
+            # Pause kontrolü - test duraklatıldıysa bekle
+            while self.test_paused:
+                QApplication.processEvents()
+                time.sleep(0.1)
+            
             row_idx = self.table_res.rowCount()
             self.table_res.insertRow(row_idx)
 
@@ -1299,6 +1352,8 @@ class CyberPunkApp(QMainWindow):
             QApplication.processEvents()
             time.sleep(1)
 
+        # Test tamamlandığında pause butonunu devre dışı bırak
+        self.btn_pause_bulk.setEnabled(False)
         QMessageBox.information(self, "Tamamlandı", f"Toplam {len(scenarios)} test tamamlandı.")
 
     def save_bulk_results(self):
