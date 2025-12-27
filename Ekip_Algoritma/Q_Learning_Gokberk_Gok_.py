@@ -257,7 +257,9 @@ def generate_graph(N, p):
 # =================================================================================================
 # Q-LEARNING EĞİTİM LOOP (Training Loop)
 # =================================================================================================
-def train_q_learning(G, source, destination, alpha, gamma, epsilon, episodes, max_steps, w_delay, w_rel, w_res):
+def train_q_learning(G, source, destination, alpha, gamma, epsilon, episodes, max_steps, w_delay, w_rel, w_res, seed=None):
+    if seed is not None:
+        random.seed(seed)
     """
     Q-Learning ajanını eğiterek en iyi rotayı bulmasını sağlar.
     

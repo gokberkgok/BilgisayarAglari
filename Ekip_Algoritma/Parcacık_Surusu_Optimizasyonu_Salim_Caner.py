@@ -142,13 +142,14 @@ class Particle:
 class PSO:
     """Algoritma Yöneticisi"""
     def __init__(self, G, S, D, min_bw,
-                 num_particles=30, iterations=100):
+                 num_particles=30, iterations=100, seed=None):
         self.G = G
         self.S = S
         self.D = D
         self.min_bw = min_bw
         self.num_particles = num_particles
         self.iterations = iterations
+        self.seed = seed
 
         self.particles = []
         self.gbest = None
@@ -195,6 +196,8 @@ class PSO:
     # 3. Ana Döngü (Optimization Loop)
     # -----------------------------
     def run(self):
+        if self.seed is not None:
+            random.seed(self.seed)
         self.initialize()
 
         if not self.gbest:

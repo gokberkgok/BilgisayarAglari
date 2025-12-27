@@ -143,7 +143,9 @@ class ACOSolver:
     Karıncalar, feromon izlerini ve sezgisel bilgiyi (visibility) kullanarak yol seçer.
     """
     @staticmethod
-    def solve(graph, source, target, weights, min_bw, num_ants=20, num_iterations=30):
+    def solve(graph, source, target, weights, min_bw, num_ants=20, num_iterations=30, seed=None):
+        if seed is not None:
+            random.seed(seed)
         # ----------------------------------------------------------------
         # 1. ACO PARAMETRELERİNİN TANIMLANMASI
         # ----------------------------------------------------------------
@@ -380,7 +382,9 @@ class GASolver:
     Popülasyon tabanlı evrimsel yaklaşım.
     """
     @staticmethod
-    def solve(graph, source, target, weights, min_bw, population_size=40, generations=30):
+    def solve(graph, source, target, weights, min_bw, population_size=40, generations=30, seed=None):
+        if seed is not None:
+            random.seed(seed)
         # Algoritma başlangıç zamanı kaydedilir.
         start_time = time.time()
         

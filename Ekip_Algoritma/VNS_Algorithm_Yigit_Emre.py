@@ -226,13 +226,16 @@ class VNS:
                     break
         return best
 
-    def run(self, src, dst):
+    def run(self, src, dst, seed=None):
         """
         VNS Algoritmasının Ana Döngüsü:
         1. Shaking -> Rastgele değiştir
         2. Local Search -> İyileştir
         3. Karşılaştır -> İyiyse kabul et, değilse K'yı artır (daha uzağa bak)
+        4. seed -> Tekrarlanabilirlik için
         """
+        if seed is not None:
+            random.seed(seed)
         path = self.initial_path(src, dst)
         if not path:
             return None, None

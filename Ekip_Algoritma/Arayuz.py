@@ -1545,20 +1545,22 @@ class CyberPunkApp(QMainWindow):
                      path, cost_val = genetic_algorithm(
                         self.G, s, d, bw_req, 
                         w_delay, w_rel, w_res,
-                        pop_size=50, generations=50, mutation_rate=0.2 # Hız için biraz azalttım
+                        pop_size=50, generations=50, mutation_rate=0.2, # Hız için biraz azalttım
+                        seed=42
                     )
                 
                 elif algo_name.startswith("Sarsa"):
                     # episodes sayısını bulk testte çok yüksek tutmamak iyi olabilir
                     episodes_ = params.get('episodes', 500) 
-                    path, cost_val = sarsa_route(self.G, s, d, bw_req, episodes_)
+                    path, cost_val = sarsa_route(self.G, s, d, bw_req, episodes_, seed=42)
                 
                 elif "Q-Learning" in algo_name:
                     path, cost_val = train_q_learning(
                         self.G, s, d,
                         params.get('alpha', 0.1), params.get('gamma', 0.99), params.get('epsilon', 0.1),
                         params.get('episodes', 200), params.get('max_steps', 200),
-                        w_delay, w_rel, w_res
+                        w_delay, w_rel, w_res,
+                        seed=42
                     )
                 
                 elif "VNS" in algo_name:
@@ -1579,14 +1581,16 @@ class CyberPunkApp(QMainWindow):
                 elif "PSO" in algo_name:
                     pso_solver = PSO(algo_graph, s, d, bw_req, 
                                      num_particles=params.get('num_particles', 20), 
-                                     iterations=params.get('iterations', 50))
+                                     iterations=params.get('iterations', 50),
+                                     seed=42)
                     path, cost_val = pso_solver.run()
                 
                 elif "ACO" in algo_name:
                     path, cost_val, _ = ACOSolver.solve(
                         algo_graph, s, d, weights_tuple, bw_req,
                         num_ants=params.get('num_ants', 20), 
-                        num_iterations=params.get('num_iterations', 30)
+                        num_iterations=params.get('num_iterations', 30),
+                        seed=42
                     )
                 
             except Exception as e:
@@ -2007,7 +2011,8 @@ class CyberPunkApp(QMainWindow):
             best_path, best_cost = genetic_algorithm(
                 self.G, s, d, min_bw, 
                 w_delay, w_rel, w_res,
-                pop_size=60, generations=120, mutation_rate=0.2
+                pop_size=60, generations=120, mutation_rate=0.2,
+                seed=42
             )
             
             if best_path and len(best_path) > 1:
@@ -2058,7 +2063,7 @@ class CyberPunkApp(QMainWindow):
             # SARSA algoritmasını çalıştır
             # SARSA modülü kendi graf yapısını kullanıyor, bu yüzden geçici olarak
             # mevcut grafı SARSA formatına uygun hale getiriyoruz
-            best_path, best_cost = sarsa_route(self.G, s, d, min_bandwidth, episodes)
+            best_path, best_cost = sarsa_route(self.G, s, d, min_bandwidth, episodes, seed=42)
             
             if best_path:
                 self.log(f"✅ SARSA tamamlandı! Yol bulundu: {len(best_path)} düğüm")
@@ -2118,7 +2123,8 @@ class CyberPunkApp(QMainWindow):
                 self.G, s, d,
                 alpha, gamma, epsilon,
                 episodes, max_steps,
-                w_delay, w_rel, w_res
+                w_delay, w_rel, w_res,
+                seed=42
             )
             
             if best_path:
@@ -2193,7 +2199,7 @@ class CyberPunkApp(QMainWindow):
             
             for run in range(test_runs):
                 self.log(f"  Run {run + 1}/{test_runs}...")
-                path, result = vns.run(s, d)
+                path, result = vns.run(s, d, seed=42 + run)
                 if path and result:
                     cost = result[1]["Cost"]
                     if cost < best_cost:
@@ -2265,7 +2271,7 @@ class CyberPunkApp(QMainWindow):
                 )
             
             # PSO algoritmasını çalıştır
-            pso = PSO(pso_G, s, d, min_bw, num_particles=num_particles, iterations=iterations)
+            pso = PSO(pso_G, s, d, min_bw, num_particles=num_particles, iterations=iterations, seed=42)
             path, cost = pso.run()
             
             if path:
@@ -2339,7 +2345,8 @@ class CyberPunkApp(QMainWindow):
             # ACO algoritmasını çalıştır
             path, cost, duration = ACOSolver.solve(
                 aco_G, s, d, weights, min_bw,
-                num_ants=num_ants, num_iterations=iterations
+                num_ants=num_ants, num_iterations=iterations,
+                seed=42
             )
             
             if path:

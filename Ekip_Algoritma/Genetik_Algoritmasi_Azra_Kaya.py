@@ -147,7 +147,7 @@ def weighted_cost(G, path, w1, w2, w3):
 # GENETİK ALGORİTMA (CORE)
 # =================================================================================================
 def genetic_algorithm(G, source, target, bw, w1, w2, w3,
-                      pop_size=60, generations=120, mutation_rate=0.2):
+                      pop_size=60, generations=120, mutation_rate=0.2, seed=None):
     """
     Genetik Algoritma ile en iyi yolu arar.
     
@@ -158,7 +158,11 @@ def genetic_algorithm(G, source, target, bw, w1, w2, w3,
     - w1, w2, w3: Gecikme, Güvenilirlik ve Kaynak Ağırlıkları
     - pop_size: Popülasyon büyüklüğü (aynı anda kaç yol denenecek)
     - generations: Kaç nesil boyunca evrimleşecek
+    - seed: Tekrarlanabilirlik için seed
     """
+    if seed is not None:
+        random.seed(seed)
+
 
     # Ağırlıkları normalize et (Toplamı 1 olsun)
     s = w1 + w2 + w3

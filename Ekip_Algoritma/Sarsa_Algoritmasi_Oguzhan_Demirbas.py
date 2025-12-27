@@ -127,11 +127,15 @@ def compute_cost(G, path):
 # =================================================================================================
 # SARSA ALGORİTMASI (CORE)
 # =================================================================================================
-def sarsa_route(G, S, D, min_bw, episodes=2000):
+def sarsa_route(G, S, D, min_bw, episodes=2000, seed=None):
     """
     SARSA algoritması ile Kaynak(S) -> Hedef(D) arasında yol bulur.
     min_bw: Sadece bant genişliği bu değerden yüksek olan kenarlar kullanılır.
+    seed: Tekrarlanabilirlik için rastgele sayı üreteci başlangıç değeri.
     """
+    if seed is not None:
+        random.seed(seed)
+
     # Q-Tablosu: Varsayılan değeri 0.0 olan bir sözlük.
     # Anahtar (Key): (state, action) -> (mevcut_düğüm, gidilecek_komşu)
     Q = defaultdict(float)
