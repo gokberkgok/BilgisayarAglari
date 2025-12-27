@@ -1847,7 +1847,7 @@ class CyberPunkApp(QMainWindow):
             nx.draw_networkx_nodes(self.G, self.pos, ax=ax, nodelist=[path[-1]], node_color='#ff0000', node_size=120)
             
             # Yol üzerindeki düğümlerin numaralarını daha belirgin göster
-            path_labels = {n: str(n + 1) for n in path[:index+2]}
+            path_labels = {n: str(n) for n in path[:index+2]}
             nx.draw_networkx_labels(self.G, self.pos, path_labels, ax=ax, font_size=8, font_color='white', font_weight='bold')
             
             self.canvas.draw()
@@ -1890,7 +1890,7 @@ class CyberPunkApp(QMainWindow):
                 msg = QMessageBox(self)
                 msg.setIcon(QMessageBox.Icon.Warning)
                 msg.setWindowTitle("Yol Bulunamadı")
-                msg.setText(f"{algo} algoritması kaynak {s+1}'den hedef {d+1}'e giden bir yol bulamadı.\n\n"
+                msg.setText(f"{algo} algoritması kaynak {s}'den hedef {d}'e giden bir yol bulamadı.\n\n"
                            f"Lütfen farklı kaynak/hedef veya farklı algoritma deneyin.")
                 msg.setStyleSheet("""
                     QMessageBox { background-color: #f0f0f0; }
@@ -1950,8 +1950,8 @@ class CyberPunkApp(QMainWindow):
                 self.lbl_analysis_cost.setText(f"{total_cost_val:.4f}")
                 self.lbl_analysis_status.setText("✅ Başarılı")
                 
-                # Yolu göster (1-indexed)
-                path_str = " → ".join(str(node + 1) for node in path)
+                # Yolu göster (0-indexed)
+                path_str = " → ".join(str(node) for node in path)
                 self.lbl_analysis_path.setText(path_str)
                 
                 self.log(f"📊 Yol Metrikleri:")
