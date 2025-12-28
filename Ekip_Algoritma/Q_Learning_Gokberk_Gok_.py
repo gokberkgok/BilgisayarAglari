@@ -114,40 +114,79 @@ class QLearning:
 # =====================================================================
 #                         GRAF OLUŞTURMA
 # =====================================================================
+"""
+#def generate_graph(N, p):
+  
+    import os
 
-def generate_graph(N, p):
-    """Erdős-Rényi modeli ile graf oluştur ve NodeData.csv'den node verilerini yükle"""
-    
-    #print(f"\n{'='*60}")
-    #print(f"GRAF OLUŞTURULUYOR...")
     print(f"{'='*60}")
     print(f"Node Sayısı (N): {N}")
     print(f"Bağlantı Olasılığı (p): {p}")
-    
-    # ----- Load NodeData.csv -----
+
+    # ===============================================================
+    #                      NODE DATA LOAD
+    # ===============================================================
     try:
-        # Çalışma dizininden oku
         cwd = os.getcwd()
-        fpath = os.path.join(cwd, "BSM307_317_Guz2025_TermProject_NodeData.csv")
+        fpath_nodes = os.path.join(cwd, "BSM307_317_Guz2025_TermProject_NodeData.csv")
         try:
-             df = pd.read_csv(fpath, sep=";", decimal=",")
+            df_nodes = pd.read_csv(fpath_nodes, sep=";", decimal=",")
         except:
-             df = pd.read_csv(fpath, sep=",", decimal=".")
-        df.columns = ["node_id", "processing_delay", "reliability"]
-        
-        # Ensure we have enough nodes
-        if len(df) < N:
-            print(f"⚠️  UYARI: CSV'de sadece {len(df)} düğüm var, N={N} istendi.")
-            N = len(df)
-            
-        #print(f"✅ NodeData.csv başarıyla okundu ({len(df)} düğüm)")
+            df_nodes = pd.read_csv(fpath_nodes, sep=",", decimal=".")
+
+        df_nodes.columns = ["node_id", "processing_delay", "reliability"]
+
+        if len(df_nodes) < N:
+            print(f"⚠️ UYARI: CSV'de sadece {len(df_nodes)} düğüm var, N={N} istendi.")
+            N = len(df_nodes)
+
     except Exception as e:
-        print(f"❌ HATA: BSM307_317_Guz2025_TermProject_NodeData.csv okunamadı! {str(e)}")
-        print("❌ Program sonlandırılıyor...")
+        print(f"❌ HATA: NodeData CSV okunamadı: {str(e)}")
         exit(1)
 
-    # Graf oluştur
-    G = nx.erdos_renyi_graph(N, p)
+    # ===============================================================
+    #                      EDGE DATA LOAD
+    # ===============================================================
+    try:
+        fpath_edges = os.path.join(cwd, "BSM307_317_Guz2025_TermProject_EdgeData.csv")
+        df_edges = pd.read_csv(fpath_edges)
+
+        df_edges.columns = ["src", "dst", "capacity_mbps", "delay_ms", "r_link"]
+
+    except Exception as e:
+        print(f"❌ HATA: EdgeData CSV okunamadı: {str(e)}")
+        exit(1)
+
+    # ===============================================================
+    #                       GRAPH BUILD
+    # ===============================================================
+    G = nx.Graph()
+
+    # Node Ekle
+    for i in range(N):
+        G.add_node(i)
+
+    # EdgeData CSV’den gelen kenarlar ekleniyor
+    for _, row in df_edges.iterrows():
+        u = int(row["src"])
+        v = int(row["dst"])
+
+        if u < N and v < N:
+            G.add_edge(u, v)
+            G.edges[u, v]["bandwidth"] = float(row["capacity_mbps"])
+            G.edges[u, v]["link_delay"] = float(row["delay_ms"])
+            G.edges[u, v]["link_rel"] = float(row["r_link"])
+
+    # Eğer CSV kenar yeterli değilse Erdos–Renyi ile tamamla
+    target_edges = int(p * (N * (N - 1) / 2))
+    while len(G.edges()) < target_edges:
+        u = random.randint(0, N - 1)
+        v = random.randint(0, N - 1)
+        if u != v and not G.has_edge(u, v):
+            G.add_edge(u, v)
+            G.edges[u, v]['bandwidth'] = random.uniform(BANDWIDTH_MIN, BANDWIDTH_MAX)
+            G.edges[u, v]['link_delay'] = random.uniform(LINK_DELAY_MIN, LINK_DELAY_MAX)
+            G.edges[u, v]['link_rel'] = random.uniform(LINK_RELIABILITY_MIN, LINK_RELIABILITY_MAX)
 
     # Bağlı değilse bağla
     if not nx.is_connected(G):
@@ -156,26 +195,110 @@ def generate_graph(N, p):
             a = random.choice(list(comps[i]))
             b = random.choice(list(comps[i + 1]))
             G.add_edge(a, b)
-        print("⚠️  Graf bağlı değildi, bağlantılar eklendi.")
+        print("⚠️ Graf bağlı değildi, bağlantı eklendi.")
 
-    # NODE ATTRIBUTES - CSV'den al
+    # Node attributes
     for n in G.nodes():
-        if n < len(df):
-            G.nodes[n]['proc_delay'] = float(df.loc[n, "processing_delay"])
-            G.nodes[n]['node_rel'] = float(df.loc[n, "reliability"])
+        if n < len(df_nodes):
+            G.nodes[n]['proc_delay'] = float(df_nodes.loc[n, "processing_delay"])
+            G.nodes[n]['node_rel'] = float(df_nodes.loc[n, "reliability"])
         else:
             G.nodes[n]['proc_delay'] = 1.0
             G.nodes[n]['node_rel'] = 0.95
 
-    # EDGE ATTRIBUTES
-    for u, v in G.edges():
-        G.edges[u, v]['bandwidth'] = random.uniform(BANDWIDTH_MIN, BANDWIDTH_MAX)
-        G.edges[u, v]['link_delay'] = random.uniform(LINK_DELAY_MIN, LINK_DELAY_MAX)
-        G.edges[u, v]['link_rel'] = random.uniform(LINK_RELIABILITY_MIN, LINK_RELIABILITY_MAX)
-
     print(f"✅ Graf başarıyla oluşturuldu ({len(G.nodes)} düğüm, {len(G.edges)} kenar)")
     print(f"{'='*60}")
-    
+
+    return G
+"""
+def generate_graph(N, p):
+    """Graf oluştur - sadece CSV edge kullanılır, ekstra bağlantı yok"""
+    import os
+
+    print(f"{'='*60}")
+    print(f"Node Sayısı (N): {N}")
+    print(f"CSV Edge grafı yükleniyor...")
+
+    # ===============================================================
+    #                      NODE DATA LOAD
+    # ===============================================================
+    try:
+        cwd = os.getcwd()
+        fpath_nodes = os.path.join(cwd, "BSM307_317_Guz2025_TermProject_NodeData.csv")
+        try:
+            df_nodes = pd.read_csv(fpath_nodes, sep=";", decimal=",")
+        except:
+            df_nodes = pd.read_csv(fpath_nodes, sep=",", decimal=".")
+
+        df_nodes.columns = ["node_id", "processing_delay", "reliability"]
+
+        if len(df_nodes) < N:
+            print(f"⚠️ UYARI: Node CSV'de {len(df_nodes)} düğüm var, N={N} istendi → N düşürüldü.")
+            N = len(df_nodes)
+
+    except Exception as e:
+        print(f"❌ HATA: NodeData CSV okunamadı: {str(e)}")
+        exit(1)
+
+    # ===============================================================
+    #                      EDGE DATA LOAD
+    # ===============================================================
+    try:
+        fpath_edges = os.path.join(cwd, "BSM307_317_Guz2025_TermProject_EdgeData.csv")
+        df_edges = pd.read_csv(fpath_edges)
+
+        df_edges.columns = ["src", "dst", "capacity_mbps", "delay_ms", "r_link"]
+
+    except Exception as e:
+        print(f"❌ HATA: EdgeData CSV okunamadı: {str(e)}")
+        exit(1)
+
+    # ===============================================================
+    #                       GRAPH BUILD
+    # ===============================================================
+    G = nx.Graph()
+
+    # Node ekle
+    for i in range(N):
+        G.add_node(i)
+
+    # EdgeData CSV’den kenar ekle (SADECE CSV!)
+    missing_edge_count = 0
+
+    for _, row in df_edges.iterrows():
+        u = int(row["src"])
+        v = int(row["dst"])
+
+        # Geçersiz düğüm varsa atla
+        if u >= N or v >= N:
+            missing_edge_count += 1
+            continue
+
+        G.add_edge(u, v)
+        G.edges[u, v]["bandwidth"] = float(row["capacity_mbps"])
+        G.edges[u, v]["link_delay"] = float(row["delay_ms"])
+        G.edges[u, v]["link_rel"] = float(row["r_link"])
+
+    # Node attributes yükle
+    for n in G.nodes():
+        G.nodes[n]['proc_delay'] = float(df_nodes.loc[n, "processing_delay"])
+        G.nodes[n]['node_rel'] = float(df_nodes.loc[n, "reliability"])
+
+    # Raporlama
+    print(f"📌 CSV Edge sayısı: {len(df_edges)}")
+    print(f"📌 Graf edge sayısı: {len(G.edges)}")
+    print(f"📌 Graf node sayısı: {len(G.nodes)}")
+
+    if missing_edge_count > 0:
+        print(f"⚠️ UYARI: {missing_edge_count} edge, CSV node sayısı dışında olduğu için eklenmedi.")
+
+    if not nx.is_connected(G):
+        print(f"⚠️ UYARI: Graf BAĞLI değil!")
+        print(f"   (İstersen bağlanma algoritması ekleyebilirim.)")
+
+    print(f"✅ CSV graf yüklemesi tamamlandı.")
+    print(f"{'='*60}")
+
     return G
 
 
