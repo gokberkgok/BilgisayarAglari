@@ -291,7 +291,7 @@ class QLearningParamsDialog(QDialog):
         
         # Varsayılan değerler
         self.alpha = 0.1
-        self.gamma = 0.99
+        self.gamma = 0.9
         self.epsilon = 0.2
         self.episodes = 300
         self.max_steps = 250
@@ -400,8 +400,8 @@ class QLearningParamsDialog(QDialog):
     def reset_to_defaults(self):
         """Varsayılan değerlere dön"""
         self.spin_alpha.setValue(0.1)
-        self.spin_gamma.setValue(0.99)
-        self.spin_epsilon.setValue(0.2)
+        self.spin_gamma.setValue(0.9)
+        self.spin_epsilon.setValue(0.9)
         self.spin_episodes.setValue(300)
         self.spin_max_steps.setValue(250)
     
@@ -1572,7 +1572,7 @@ class CyberPunkApp(QMainWindow):
                     
                     vns_solver = VNS(algo_graph)
                     # Tek run yapıp geçiyoruz
-                    path, result = vns_solver.run(s, d)
+                    path, result = vns_solver.run(s, d, seed=42)
                     if result: cost_val = result[1]["Cost"]
                     
                     # Restore

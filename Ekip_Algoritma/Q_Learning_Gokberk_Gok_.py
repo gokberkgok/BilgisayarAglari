@@ -42,8 +42,8 @@ LINK_RELIABILITY_MAX = 0.999
 # Q-Learning Hiperparametreleri
 # Bu değerler algoritmanın öğrenme performansını doğrudan etkiler.
 ALPHA = 0.1          # Öğrenme Oranı (Learning Rate): Ajansın yeni bilgilere ne kadar hızlı adapte olacağı.
-GAMMA = 0.99         # İndirim Faktörü (Discount Factor): Gelecekteki ödüllerin önemi (0-1 arası).
-EPSILON = 0.2        # Keşif Oranı (Exploration Rate): Rastgele hareket etme olasılığı.
+GAMMA = 0.90        # İndirim Faktörü (Discount Factor): Gelecekteki ödüllerin önemi (0-1 arası).
+EPSILON = 0.9       # Keşif Oranı (Exploration Rate): Rastgele hareket etme olasılığı.
 EPISODES = 300       # Bölüm Sayısı: Ajanın kaç kez baştan sona gidip geleceği.
 MAX_STEPS = 250      # Maksimum Adım: Bir bölümde sonsuz döngüye girmemek için limit.
 

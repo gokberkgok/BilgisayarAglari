@@ -69,10 +69,42 @@ python Arayuz.py
 *   `VNS_Algorithm_*.py`: VNS implementasyonu.
 *   `*.csv`: Ağ topolojisi (Node/Edge) ve talep verileri.
 
+## 🔬 Tekrarlanabilirlik ve Seed Desteği
+
+Proje, bilimsel araştırma ve akademik çalışmalar için kritik öneme sahip **%100 tekrarlanabilir sonuçlar** sunmaktadır. Tüm algoritmalar `seed` (rastgele sayı üreteci tohum değeri) parametresi ile çalışacak şekilde güncellenmiştir.
+
+### Seed Implementasyonu
+
+Her algoritma dosyası, `seed` parametresini kabul eder ve aşağıdaki şekilde kullanır:
+
+*   **SARSA** (`Sarsa_Algoritmasi_Oguzhan_Demirbas.py`): `sarsa_route(G, S, D, min_bw, episodes, seed=42)`
+*   **Genetik Algoritma** (`Genetik_Algoritmasi_Azra_Kaya.py`): `genetic_algorithm(..., seed=42)`
+*   **ACO** (`Karınca_Kolonisi_Algoritmasi_Aivaz_Arysbay.py`): `ACO.solve(..., seed=42)`
+*   **Q-Learning** (`Q_Learning_Gokberk_Gok_.py`): `train_q_learning(..., seed=42)`
+*   **PSO** (`Parcacık_Surusu_Optimizasyonu_Salim_Caner.py`): `PSO(..., seed=42)`
+*   **VNS** (`VNS_Algorithm_Yigit_Emre.py`): `VNS.run(..., seed=42)`
+
+### Varsayılan Seed Değeri
+
+Uygulama, varsayılan olarak **seed=42** değerini kullanır. Bu değer:
+*   Tüm algoritmalarda tutarlı sonuçlar üretir
+*   Aynı parametrelerle yapılan testlerin aynı sonuçları vermesini garanti eder
+*   GitHub ve akademik paylaşımlar için sonuçların doğrulanabilir olmasını sağlar
+
+### Doğrulama
+
+Seed implementasyonunu test etmek için `verify_seed.py` dosyası kullanılabilir:
+
+```bash
+python verify_seed.py
+```
+
+Bu script, aynı seed değeri ile yapılan iki çalıştırmanın özdeş sonuçlar verdiğini, farklı seed değerleri ile yapılan çalıştırmaların ise farklı sonuçlar ürettiğini doğrular.
+
 ## 📝 Notlar
 
 *   Ağ topolojisi, proje dizinindeki CSV dosyalarından otomatik olarak oluşturulur. CSV dosyaları bulunamazsa rastgele bir Watts-Strogatz grafı üretilir.
-*   Tekrarlanabilirlik için tüm rastgele sayı üreteçleri sabit bir `seed` (varsayılan: 42) kullanacak şekilde yapılandırılmıştır.
+*   Tekrarlanabilirlik ve seed desteği hakkında detaylı bilgi için yukarıdaki **"🔬 Tekrarlanabilirlik ve Seed Desteği"** bölümüne bakınız.
 
 ---
 *Bu proje BSM307/317 Dönem Projesi kapsamında geliştirilmiştir.*
