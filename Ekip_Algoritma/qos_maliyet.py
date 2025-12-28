@@ -21,41 +21,67 @@ import networkx as nx
 
 def compute_edge_cost(G, u, v, weights=None):
     """
-    Bir edge'in QoS tabanlı maliyetini hesaplar.
+    Bir kenarın (edge) QoS (Hizmet Kalitesi) tabanlı maliyetini hesaplar.
+    Bu fonksiyon, graf üzerindeki iki düğüm arasındaki bağlantının "ne kadar maliyetli" olduğunu belirler.
+    
+    Hesaplama Mantığı:
+    Maliyet = (w1 * Gecikme) + (w2 * Güvenilirlik_Maliyeti) + (w3 * Kaynak_Maliyeti)
     
     Args:
-        G: NetworkX graph nesnesi
-        u: Başlangıç düğümü
-        v: Bitiş düğümü
-        weights: dict - {'delay': w1, 'reliability': w2, 'resource': w3}
-                 None ise eşit ağırlık kullanılır
+        G (networkx.Graph): İşlem yapılacak graf nesnesi.
+        u (int): Başlangıç düğümü ID'si.
+        v (int): Bitiş düğümü ID'si.
+        weights (dict): Kullanıcının belirlediği ağırlıklar. 
+                        Örn: {'delay': 0.5, 'reliability': 0.3, 'resource': 0.2}
+                        Eğer None gelirse, hepsi eşit (1.0) kabul edilir.
     
     Returns:
-        float: Edge'in toplam QoS maliyeti
+        float: Hesaplanan toplam maliyet değeri (skor).
     """
+    # Eğer ağırlık verilmediyse, varsayılan olarak hepsini 1.0 al
     if weights is None:
         weights = {'delay': 1.0, 'reliability': 1.0, 'resource': 1.0}
     
+    # Graf'tan o kenara ait verileri çek (Bandwidth, Delay, Reliability)
     edge_data = G[u][v]
     
-    # 1. Gecikme maliyeti
+    # ----------------------------------------------------------------
+    # 1. GECİKME (DELAY) MALİYETİ
+    # ----------------------------------------------------------------
+    # Link üzerindeki iletim gecikmesi (ms cinsinden).
+    # Düşük olması iyidir, bu yüzden olduğu gibi maliyete eklenir.
     delay_cost = edge_data.get('link_delay', 0)
     
-    # 2. Güvenilirlik maliyeti: -log(reliability)
+    # ----------------------------------------------------------------
+    # 2. GÜVENİLİRLİK (RELIABILITY) MALİYETİ
+    # ----------------------------------------------------------------
+    # Güvenilirlik 0-1 arasında bir olasılıktır (Örn: 0.99).
+    # Çarpımsal bir metrik olduğu için (yol boyunca çarpılır), toplamsal maliyete çevirmek gerekir.
+    # Formül: -log(Güvenilirlik)
+    # Örnek: -log(0.99) ≈ 0.01 (Düşük maliyet), -log(0.1) ≈ 2.3 (Yüksek maliyet)
     link_rel = edge_data.get('link_rel', 1.0)
     if link_rel > 0:
         reliability_cost = -math.log(link_rel)
     else:
+        # Eğer güvenilirlik 0 ise (kopuk hat), maliyet sonsuzdur.
         reliability_cost = float('inf')
     
-    # 3. Kaynak maliyeti: 1000/bandwidth
+    # ----------------------------------------------------------------
+    # 3. KAYNAK (RESOURCE) MALİYETİ
+    # ----------------------------------------------------------------
+    # Bant genişliği (Bandwidth) ne kadar yüksekse maliyet o kadar DÜŞÜK olmalıdır.
+    # Bu yüzden tersini alıyoruz: 1000 / Bandwidth
+    # Örn: 100 Mbps -> Maliyet 10, 1000 Mbps -> Maliyet 1
     bandwidth = edge_data.get('bandwidth', 1)
     if bandwidth > 0:
         resource_cost = 1000.0 / bandwidth
     else:
         resource_cost = float('inf')
     
-    # Toplam maliyet
+    # ----------------------------------------------------------------
+    # TOPLAM AĞIRLIKLI MALİYET
+    # ----------------------------------------------------------------
+    # Her bir maliyet bileşeni, kullanıcının belirlediği ağırlıkla çarpılıp toplanır.
     total = (weights['delay'] * delay_cost +
              weights['reliability'] * reliability_cost +
              weights['resource'] * resource_cost)

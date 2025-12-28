@@ -1,71 +1,91 @@
-# =================================================
-# QoS Tabanlı Yol Bulma – Genetik Algoritma
-# Ana Mod + Test Modu (Demand CSV, 20 Run)
-# =================================================
+# =================================================================================================
+# QoS Tabanlı Yol Bulma – Genetik Algoritma (Genetic Algorithm)
+# =================================================================================================
+# Bu modül, Genetik Algoritma (GA) kullanarak ağ üzerindeki en uygun yolu bulmayı amaçlar.
+# GA, doğadaki evrim sürecini taklit eden bir optimizasyon yöntemidir.
+#
+# TEMEL MANTIK:
+# 1. Başlangıçta rastgele yollar üretilir (Popülasyon).
+# 2. Her yolun kalitesi (Fitness) hesaplanır (Gecikme, Güvenilirlik, Bant Genişliği).
+# 3. En iyi yollar seçilir (Selection).
+# 4. Seçilen yollar üzerinde değişiklikler yapılır (Mutation/Crossover - Bu kodda basitleştirilmiş mutasyon var).
+# 5. Bu işlem belirli bir nesil (generation) sayısı kadar tekrarlanır.
+# =================================================================================================
 
 import pandas as pd
 import networkx as nx
 import os, math, random
 
-# =================================================
-# DOSYA YOLLARI
-# =================================================
+# =================================================================================================
+# DOSYA YOLLARI VE YAPILANDIRMA
+# =================================================================================================
+# Scriptin bulunduğu dizini temel alarak CSV dosyalarının yerini belirler.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 NODE_FILE   = os.path.join(BASE_DIR, "BSM307_317_Guz2025_TermProject_NodeData.csv")
 EDGE_FILE   = os.path.join(BASE_DIR, "BSM307_317_Guz2025_TermProject_EdgeData.csv")
 DEMAND_FILE = os.path.join(BASE_DIR, "BSM307_317_Guz2025_TermProject_DemandData.csv")
 
-# =================================================
-# GÜVENLİ DÖNÜŞÜMLER
-# =================================================
+# =================================================================================================
+# YARDIMCI FONKSİYONLAR (GÜVENLİ VERİ DÖNÜŞÜMÜ)
+# =================================================================================================
 def safe_float(x, default=0.0):
+    """CSV'den okunan string veriyi float'a çevirir, virgül/nokta hatasını düzeltir."""
     try:
         return float(str(x).replace(",", "."))
     except:
         return default
 
 def safe_int(x, default=0):
+    """CSV'den okunan string veriyi int'e çevirir."""
     try:
         return int(float(str(x).replace(",", ".")))
     except:
         return default
 
-# =================================================
-# GRAF YÜKLEME
-# =================================================
+# =================================================================================================
+# GRAF YÜKLEME (CSV -> NetworkX)
+# =================================================================================================
 def load_graph(node_csv, edge_csv):
+    """
+    Düğüm ve Kenar CSV dosyalarını okuyup NetworkX graf nesnesi oluşturur.
+    Her düğüm ve kenara Gecikme, Güvenilirlik ve Bant Genişliği bilgilerini ekler.
+    """
     nd = pd.read_csv(node_csv)
     ed = pd.read_csv(edge_csv)
 
     G = nx.Graph()
 
+    # Düğümleri (Nodes) Ekleme
     for _, r in nd.iterrows():
         G.add_node(
             safe_int(r["node_id"]),
+            # Farklı CSV formatlarına uyum sağlamak için alternatif anahtarlar:
             proc_delay=safe_float(r["s_ms"]),
-            processing_delay=safe_float(r["s_ms"]),  # Backward compatibility
+            processing_delay=safe_float(r["s_ms"]),  # Geriye dönük uyumluluk
             node_rel=safe_float(r["r_node"]),
-            reliability=safe_float(r["r_node"])  # Backward compatibility
+            reliability=safe_float(r["r_node"])      # Geriye dönük uyumluluk
         )
 
+    # Kenarları (Edges/Links) Ekleme
     for _, r in ed.iterrows():
         G.add_edge(
             safe_int(r["src"]),
             safe_int(r["dst"]),
             bandwidth=safe_float(r["capacity_mbps"]),
             link_delay=safe_float(r["delay_ms"]),
-            delay=safe_float(r["delay_ms"]),  # Backward compatibility
+            delay=safe_float(r["delay_ms"]),         # Geriye dönük uyumluluk
             link_rel=safe_float(r["r_link"]),
-            reliability=safe_float(r["r_link"])  # Backward compatibility
+            reliability=safe_float(r["r_link"])      # Geriye dönük uyumluluk
         )
 
     return G
 
-# =================================================
-# DEMAND YÜKLEME (TEST MODU)
-# =================================================
+# =================================================================================================
+# TALEP (DEMAND) YÜKLEME
+# =================================================================================================
 def load_demands(csv_file):
+    """Test senaryolarını içeren Demand dosyasını okur."""
     df = pd.read_csv(csv_file)
     demands = []
 
@@ -78,10 +98,11 @@ def load_demands(csv_file):
 
     return demands
 
-# =================================================
-# YOL KONTROLLERİ
-# =================================================
+# =================================================================================================
+# YOL DOĞRULAMA VE KISIT KONTROLLERİ
+# =================================================================================================
 def is_valid_path(G, path):
+    """Verilen yolun graf üzerinde fiziksel olarak mümkün olup olmadığını kontrol eder."""
     if not path or len(path) < 2:
         return False
     for u, v in zip(path, path[1:]):
@@ -90,56 +111,88 @@ def is_valid_path(G, path):
     return True
 
 def check_bandwidth(G, path, bw):
+    """Yol üzerindeki TÜM bağlantıların istenen bant genişliğini sağlayıp sağlamadığını kontrol eder."""
     if not is_valid_path(G, path):
         return False
+    # Yol üzerindeki darboğazı (en düşük kapasiteli linki) bul ve karşılaştır
     return min(G[u][v]["bandwidth"] for u, v in zip(path, path[1:])) >= bw
 
-# =================================================
-# QoS COST
-# =================================================
+# =================================================================================================
+# QoS MALİYET (Fitness/Score) HESAPLAMA
+# =================================================================================================
 def weighted_cost(G, path, w1, w2, w3):
-    # GUI uyumlu key isimleri kullan (fallback ile)
+    """
+    Bir yolun toplam QoS maliyetini hesaplar.
+    Formül: w1*Gecikme + w2*Güvenilirlik + w3*KaynakKullanımı
+    """
+    # 1. Gecikme: Linklerdeki iletim süresi + Düğümlerdeki işlem süresi
     delay = sum(G[u][v].get("link_delay", G[u][v].get("delay", 0)) for u, v in zip(path, path[1:]))
     delay += sum(G.nodes[n].get("proc_delay", G.nodes[n].get("processing_delay", 0)) for n in path[1:-1])
 
+    # 2. Güvenilirlik: Olasılıkların çarpımı -> Logaritmik toplama dönüşümü
+    # Çarpımsal güvenilirliği toplamsal maliyete çevirmek için -log kullanılır.
     reliability = 0.0
     for u, v in zip(path, path[1:]):
+        # 1e-12 math.log(0) hatasını önlemek içindir
         reliability += -math.log(max(G[u][v].get("link_rel", G[u][v].get("reliability", 0.99)), 1e-12))
     for n in path:
         reliability += -math.log(max(G.nodes[n].get("node_rel", G.nodes[n].get("reliability", 0.99)), 1e-12))
 
+    # 3. Kaynak Kullanımı: Yüksek bant genişliği = Düşük maliyet (Ters orantı)
     resource = sum(1000.0 / G[u][v]["bandwidth"] for u, v in zip(path, path[1:]))
 
     return w1 * delay + w2 * reliability + w3 * resource
 
-# =================================================
-# GENETİK ALGORİTMA (TEK ÇALIŞMA)
-# =================================================
+# =================================================================================================
+# GENETİK ALGORİTMA (CORE)
+# =================================================================================================
 def genetic_algorithm(G, source, target, bw, w1, w2, w3,
-                      pop_size=60, generations=120, mutation_rate=0.2):
+                      pop_size=60, generations=120, mutation_rate=0.2, seed=None):
+    """
+    Genetik Algoritma ile en iyi yolu arar.
+    
+    Parametreler:
+    - G: Graf
+    - source, target: Kaynak ve Hedef
+    - bw: İstenen Minimum Bant Genişliği
+    - w1, w2, w3: Gecikme, Güvenilirlik ve Kaynak Ağırlıkları
+    - pop_size: Popülasyon büyüklüğü (aynı anda kaç yol denenecek)
+    - generations: Kaç nesil boyunca evrimleşecek
+    - seed: Tekrarlanabilirlik için seed
+    """
+    if seed is not None:
+        random.seed(seed)
 
-    # ağırlık normalize
+
+    # Ağırlıkları normalize et (Toplamı 1 olsun)
     s = w1 + w2 + w3
     w1, w2, w3 = w1/s, w2/s, w3/s
 
+    # --- Yardımcı Fonksiyon: Rastgele Yol Üretme ---
     def random_path(max_steps=60):
+        """Rastgele yürüyüş (random walk) ile kaynaktan hedefe bir yol bulmaya çalışır."""
         path = [source]
         current = source
 
         for _ in range(max_steps):
+            # Gittiğimiz yere geri dönmemek için (döngü engelleme) visited kontrolü yapıyoruz
             nbrs = [n for n in G.neighbors(current) if n not in path]
+            
             if not nbrs:
-                return None
+                return None # Çıkmaz sokak
+            
             if target in nbrs:
-                return path + [target]
+                return path + [target] # Hedefe ulaştık!
+            
             current = random.choice(nbrs)
             path.append(current)
 
-        return None
+        return None # Hedefe ulaşamadan adım sayısı bitti
 
-    # ✅ Başlangıç popülasyonu oluştur (timeout ile)
+    # 1. ADIM: BAŞLANGIÇ POPÜLASYONU (INITIALIZATION)
+    # Rastgele yollar üreterek havuzu dolduruyoruz.
     population = []
-    max_attempts = pop_size * 20  # Daha fazla deneme
+    max_attempts = pop_size * 20  # Sonsuz döngüye girmemek için limit
     attempts = 0
     
     print(f"🔍 Popülasyon oluşturuluyor (hedef: {pop_size} birey)...")
@@ -147,6 +200,7 @@ def genetic_algorithm(G, source, target, bw, w1, w2, w3,
     while len(population) < pop_size and attempts < max_attempts:
         attempts += 1
         p = random_path()
+        # Yol bulunduysa VE bant genişliğini sağlıyorsa havuza ekle
         if p and check_bandwidth(G, p, bw):
             population.append(p)
             if len(population) % 10 == 0:
@@ -154,8 +208,8 @@ def genetic_algorithm(G, source, target, bw, w1, w2, w3,
     
     print(f"📊 Popülasyon tamamlandı: {len(population)}/{pop_size} birey ({attempts} deneme)")
     
-    # Yeterli popülasyon oluşturulamadıysa None döndür
-    min_required = max(3, pop_size // 20)  # En az 3 veya %5'i
+    # Yeterli çeşitlilik (birey) yoksa algoritma çalışamaz
+    min_required = max(3, pop_size // 20)  
     if len(population) < min_required:
         print(f"❌ Yetersiz popülasyon! En az {min_required} birey gerekli, sadece {len(population)} oluşturuldu")
         print(f"💡 İpucu: Bandwidth kısıtı çok yüksek olabilir (şu an: {bw} Mbps)")
@@ -164,32 +218,41 @@ def genetic_algorithm(G, source, target, bw, w1, w2, w3,
     best_path = None
     best_cost = float("inf")
 
+    # 2. ADIM: EVRİM DÖNGÜSÜ (EVOLUTION LOOP)
     for gen in range(generations):
+        # Her bireyin skorunu hesapla
         scored = []
         for p in population:
             if check_bandwidth(G, p, bw):
-                scored.append((p, weighted_cost(G, p, w1, w2, w3)))
+                cost = weighted_cost(G, p, w1, w2, w3)
+                scored.append((p, cost))
 
         if not scored:
             break
 
+        # Skora göre sırala (En düşük maliyet en iyi)
         scored.sort(key=lambda x: x[1])
 
+        # En iyiyi güncelle (Global Best)
         if scored[0][1] < best_cost:
             best_cost = scored[0][1]
             best_path = scored[0][0]
 
+        # ELITIZM: En iyi bireyleri doğrudan sonraki nesile aktar
+        # Popülasyonun %10'u "Elite" olarak saklanır.
         elite = [p for p, _ in scored[:max(1, pop_size // 10)]]
-        population = elite[:]
+        population = elite[:] # Yeni popülasyonu elitlerle başlat
 
+        # Popülasyon dolana kadar elitlerden türet (Basit Kopyalama/Mutasyon)
+        # Not: Tam bir crossover yerine burada elitlerden rastgele seçim (selection) kullanılıyor.
         while len(population) < pop_size:
             population.append(random.choice(elite))
 
     return best_path, best_cost
 
-# =================================================
-# MAIN
-# =================================================
+# =================================================================================================
+# MODÜL TEST KODU (Bu dosya doğrudan çalıştırılırsa burası devreye girer)
+# =================================================================================================
 if __name__ == "__main__":
 
     print("📡 QoS Tabanlı Yol Bulma – Genetik Algoritma")

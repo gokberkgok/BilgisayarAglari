@@ -9,7 +9,24 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 import pandas as pd
 
-# QoS maliyet hesaplama modülü
+# =================================================================================================
+# MODÜL TANITIMI
+# =================================================================================================
+# Bu dosya (Arayuz.py), projenin ANA ÇALIŞTIRILABİLİR (Main) dosyasıdır.
+# PyQt6 kütüphanesi kullanılarak geliştirilmiş modern bir Grafik Arayüz (GUI) sunar.
+#
+# TEMEL GÖREVLERİ:
+# 1. Ağı Görselleştirme: NetworkX ve Matplotlib kullanarak düğüm ve kenarları çizer.
+# 2. Algoritmaları Yönetme: Sarsa, Q-Learning, Genetik, ACO, PSO gibi algoritmaları import eder ve çalıştırır.
+# 3. Parametre Yönetimi: Kullanıcının ağırlık (Gecikme, Güvenilirlik vb.) ve hiperparametre girmesini sağlar.
+# 4. Toplu Deney (Bulk Test): CSV dosyasından yüzlerce senaryoyu okuyup algoritmaları kıyaslar.
+# =================================================================================================
+
+# -------------------------------------------------------------------------------------------------
+# 1. HARİCİ MODÜLLERİN İÇE AKTARILMASI (IMPORT)
+# -------------------------------------------------------------------------------------------------
+# QoS maliyet hesaplama modülü: Tüm algoritmaların ortak bir matematiksel dil kullanmasını sağlar.
+# (Böylece örneğin Genetik Algoritma'nın hesapladığı maliyet ile Sarsa'nınki kıyaslanabilir olur)
 from qos_maliyet import (
     compute_edge_cost,
     compute_path_cost,
@@ -27,10 +44,18 @@ from Q_Learning_Gokberk_Gok_ import (
     total_cost
 )
 
+# -------------------------------------------------------------------------------------------------
+# DİNAMİK MODÜL YÜKLEME (Dynamic Import)
+# -------------------------------------------------------------------------------------------------
+# Projedeki diğer algoritma dosyaları (team member'ların yazdığı kodlar) standart bir Python paketi 
+# yapısında olmayabilir veya isimleri değişken olabilir. Bu yüzden `importlib` kullanarak 
+# dosya yolundan (path) doğrudan yükleme yapıyoruz. Bu yöntem, dosya isimleri değişse bile 
+# kodun kolayca adapte edilmesini sağlar.
+
 # SARSA modülünden gerekli fonksiyonları import et
 import importlib.util
 import os
-sarsa_path = os.path.join(os.path.dirname(__file__), "Sarsa_Algoritmasi_Arayuzsuz_Oguzhan_Demirbas.py")
+sarsa_path = os.path.join(os.path.dirname(__file__), "Sarsa_Algoritmasi_Oguzhan_Demirbas.py")
 spec = importlib.util.spec_from_file_location("sarsa_module", sarsa_path)
 sarsa_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sarsa_module)
@@ -66,6 +91,7 @@ genetic_module = importlib.util.module_from_spec(spec_genetic)
 spec_genetic.loader.exec_module(genetic_module)
 genetic_algorithm = genetic_module.genetic_algorithm
 
+# PyQt6 Bileşenleri: Modern ve tepkisel bir arayüz oluşturmak için kullanılır.
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QComboBox, QPushButton, QFrame, QGroupBox, QGridLayout, QDoubleSpinBox,
@@ -78,6 +104,8 @@ import time
 # ================================================================
 #                       NEON UI STYLE
 # ================================================================
+# Arayüzün estetik görünümü için CSS benzeri stil tanımlamaları.
+# "Cyberpunk / Neon" teması seçilerek modern ve dikkat çekici bir görünüm hedeflendi.
 NEON_STYLE = """
 QMainWindow {
     background-color: #050505;
@@ -180,6 +208,24 @@ QPushButton#SaveBtn {
 }
 QPushButton#SaveBtn:hover {
     background-color: #bc13fe;
+}
+/* DURDUR BUTONU (TURUNCU) */
+QPushButton#PauseBtn {
+    background-color: #ff6f00;
+    color: white;
+    padding: 10px;
+}
+QPushButton#PauseBtn:hover {
+    background-color: #ff8f00;
+}
+/* DEVAM ET BUTONU (MAVİ) */
+QPushButton#ResumeBtn {
+    background-color: #0091ea;
+    color: white;
+    padding: 10px;
+}
+QPushButton#ResumeBtn:hover {
+    background-color: #00b0ff;
 }
 QLabel#ResultLabel {
     color: #bc13fe;
@@ -901,19 +947,31 @@ class NeonCanvas(FigureCanvas):
 # ================================================================
 #                       ANA UYGULAMA
 # ================================================================
+# ================================================================
+#                       ANA UYGULAMA SINIFI
+# ================================================================
 class CyberPunkApp(QMainWindow):
+    """
+    Uygulamanın ana penceresidir (Main Window).
+    Tüm grafiksel bileşenleri, olay döngülerini ve algoritma çağrılarını yönetir.
+    """
     def __init__(self):
         super().__init__()
         self.setWindowTitle("BSM307 - CyberWorld QoS Rotalama & Toplu Deney")
         self.setGeometry(100, 100, 1300, 850)
+        
+        # Grafik arayüz için özel CSS stilini uygula
         self.setStyleSheet(NEON_STYLE)
 
-        self.node_count = 250
-        self.G = None
-        self.pos = None
-        self.anim_timer = None
-        self.loaded_demands = None 
+        # Temel değişkenler
+        self.node_count = 250   # Proje gereksinimi: 250 düğüm
+        self.G = None           # NetworkX graf nesnesi (Ağın matematiksel modeli)
+        self.pos = None         # Düğümlerin ekrandaki koordinatları (layout)
+        self.anim_timer = None  # Animasyon zamanlayıcısı
+        self.loaded_demands = None # DemandData.csv'den okunan veriler
+        self.test_paused = False   # Toplu test duraklatıldı mı?
 
+        # Kullanıcının seçebileceği algoritmaların listesi
         self.algo_list = [
             "Genetik Algoritma (Genetic Algorithm)",
             "Sarsa Algoritması (SARSA)",
@@ -923,23 +981,37 @@ class CyberPunkApp(QMainWindow):
             "Parçacık Sürüsü Optimizasyonu (Particle Swarm - PSO)"
         ]
 
+        # Arayüzü kur
         self.init_ui()
+        
+        # Ağı oluştur (Nodes + Edges)
         self.generate_network()
+        
+        # Test senaryolarını yükle
         self.load_demand_data()
 
     def init_ui(self):
+        """
+        Ana pencere düzenini (Layout) oluşturur.
+        İki ana sekme (Tab) içerir:
+        1. Tekli Analiz: Grafiği gösterir, tek bir hesaplama yapar.
+        2. Toplu Deney: Yüzlerce testi peş peşe çalıştırır.
+        """
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
         main_layout.setContentsMargins(10, 10, 10, 10)
 
+        # Sekme kontrolcüsü
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs)
 
+        # Sekme 1: Tekli Analiz
         self.tab_single = QWidget()
         self.setup_single_analysis_tab()
         self.tabs.addTab(self.tab_single, "🔍 Tekli Analiz Görselleştirme")
 
+        # Sekme 2: Toplu Deney
         self.tab_bulk = QWidget()
         self.setup_bulk_experiment_tab()
         self.tabs.addTab(self.tab_bulk, "📊 Toplu Deney (Batch Test)")
@@ -1156,10 +1228,22 @@ class CyberPunkApp(QMainWindow):
         # 1. Sol Kısım
         v_algo = QVBoxLayout()
         v_algo.addWidget(QLabel("Test Edilecek Algoritma:"))
+        
+        # Algoritma seçimi ve Ayarlar butonu yan yana
+        h_algo_layout = QHBoxLayout()
         self.combo_bulk_algo = QComboBox()
         self.combo_bulk_algo.addItems(self.algo_list)
         self.combo_bulk_algo.setMinimumWidth(250)
-        v_algo.addWidget(self.combo_bulk_algo)
+        h_algo_layout.addWidget(self.combo_bulk_algo)
+        
+        # Ayarlar butonu (icon: unicode gear ⚙️)
+        self.btn_bulk_settings = QPushButton("⚙️")
+        self.btn_bulk_settings.setFixedSize(40, 30) # Küçük kare buton
+        self.btn_bulk_settings.setToolTip("Algoritma Parametrelerini Ayarla")
+        self.btn_bulk_settings.clicked.connect(self.configure_bulk_algo)
+        h_algo_layout.addWidget(self.btn_bulk_settings)
+        
+        v_algo.addLayout(h_algo_layout)
         ctrl_layout.addLayout(v_algo)
 
         ctrl_layout.addStretch()
@@ -1173,6 +1257,14 @@ class CyberPunkApp(QMainWindow):
         self.btn_start_bulk.setMinimumHeight(50)
         self.btn_start_bulk.clicked.connect(self.run_bulk_test)
         ctrl_layout.addWidget(self.btn_start_bulk)
+
+        # TESTİ DURDUR/DEVAM ET
+        self.btn_pause_bulk = QPushButton("⏸️ Testi Durdur")
+        self.btn_pause_bulk.setObjectName("PauseBtn")
+        self.btn_pause_bulk.setMinimumHeight(50)
+        self.btn_pause_bulk.setEnabled(False)
+        self.btn_pause_bulk.clicked.connect(self.toggle_pause_test)
+        ctrl_layout.addWidget(self.btn_pause_bulk)
 
         # TEMİZLE
         self.btn_clear_bulk = QPushButton("🗑️ Temizle")
@@ -1245,61 +1337,313 @@ class CyberPunkApp(QMainWindow):
         else:
             QMessageBox.warning(self, "Uyarı", "Temizlenecek veri yok.")
 
-    def run_bulk_test(self):
+    def toggle_pause_test(self):
+        """Test durumunu durdur/devam et arasında değiştir"""
+        self.test_paused = not self.test_paused
+        if self.test_paused:
+            self.btn_pause_bulk.setText("▶️ Teste Devam Et")
+            self.btn_pause_bulk.setObjectName("ResumeBtn")
+        else:
+            self.btn_pause_bulk.setText("⏸️ Testi Durdur")
+            self.btn_pause_bulk.setObjectName("PauseBtn")
+        # Stil değişikliğini uygula
+        self.btn_pause_bulk.setStyleSheet("")
+        self.btn_pause_bulk.setStyleSheet(NEON_STYLE)
+
+    # Algoritma Parametrelerini Ayarla (Buton click)
+    def configure_bulk_algo(self):
         algo_name = self.combo_bulk_algo.currentText()
         
-        self.table_res.setRowCount(0) # Yeni test öncesi otomatik temizle
+        if not hasattr(self, 'bulk_test_params'):
+            self.bulk_test_params = {}
+            
+        params = {}
+        result = QDialog.DialogCode.Rejected
         
+        if algo_name.startswith("Genetik"):
+             # Styled message box
+             msg = QMessageBox(self)
+             msg.setWindowTitle("Bilgi")
+             msg.setText("Genetik Algoritma için ayarlanabilir ekstra parametre yok. Ana ekrandaki ağırlıklar kullanılır.")
+             msg.setIcon(QMessageBox.Icon.Information)
+             msg.setStyleSheet("""
+                 QMessageBox { background-color: #f0f0f0; }
+                 QLabel { color: black; font-size: 14px; }
+                 QPushButton { background-color: #0078d7; color: white; padding: 5px 15px; border-radius: 4px; }
+                 QPushButton:hover { background-color: #005a9e; }
+             """)
+             msg.exec()
+             return
+        elif algo_name.startswith("Sarsa"):
+            default_bw = self.spin_main_bw.value()
+            dialog = SARSAParamsDialog(self, default_bw=default_bw)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                params = dialog.get_params()
+                result = QDialog.DialogCode.Accepted
+        elif "Q-Learning" in algo_name:
+            dialog = QLearningParamsDialog(self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                params = dialog.get_params()
+                result = QDialog.DialogCode.Accepted
+        elif "VNS" in algo_name:
+            dialog = VNSParamsDialog(self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                params = dialog.get_params()
+                result = QDialog.DialogCode.Accepted
+        elif "PSO" in algo_name:
+            default_bw = self.spin_main_bw.value()
+            dialog = PSOParamsDialog(self, default_bw=default_bw)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                params = dialog.get_params()
+                result = QDialog.DialogCode.Accepted
+        elif "ACO" in algo_name:
+            default_bw = self.spin_main_bw.value()
+            dialog = ACOParamsDialog(self, default_bw=default_bw)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                params = dialog.get_params()
+                result = QDialog.DialogCode.Accepted
+        
+        if result == QDialog.DialogCode.Accepted:
+            self.bulk_test_params[algo_name] = params
+            QMessageBox.information(self, "Başarılı", f"{algo_name} parametreleri kaydedildi.")
+
+    # =============================================================================================
+    # TOPLU DENEY (BULK TEST) ÇALIŞTIRMA MANTIĞI
+    # =============================================================================================
+    def run_bulk_test(self):
+        """
+        DemandData.csv dosyasındaki tüm senaryoları sırayla işleyerek seçilen algoritmanın
+        performansını ölçer.
+        
+        Süreç Adımları:
+        1. Algoritma ve Kayıtlı Parametreleri Al: Kullanıcının "Ayarlar" butonunda belirlediği parametreleri çeker.
+        2. UI Hazırlığı: Tabloyu temizler, "Durdur" butonunu aktif eder.
+        3. Senaryo Listesi: CSV verilerini (S, D, BW) bir listeye dönüştürür.
+        4. Döngü (Loop): Her senaryo için;
+           - Pause Kontrolü: Kullanıcı durdurduysa bekler.
+           - Algoritma Çağrısı: İlgili algoritmayı çalıştırır.
+           - Metrik Hesabı: Bulunan yolun başarısını, maliyetini ve süresini kaydeder.
+           - Tablo Güncelleme: Sonucu anlık olarak ekrana yansıtır.
+        5. Raporlama: İşlem bitince kullanıcıya onay mesajı gösterir.
+        """
+        # 1. Algoritma Seçimi
+        algo_name = self.combo_bulk_algo.currentText()
+        
+        # 2. Parametreleri Al (Kaydedilmiş varsa kullan, yoksa varsayılan)
+        # Kullanıcı "Ayarlar" (Gear) butonuna basıp parametre girdiyse onları kullanırız.
+        # Girmediyse, algoritmanın kendi içindeki varsayılanlar kullanılır.
+        if not hasattr(self, 'bulk_test_params'):
+            self.bulk_test_params = {}
+            
+        params = self.bulk_test_params.get(algo_name, {})
+        
+        # Eğer parametre yoksa ve algoritmanın dialogu varsa, kullanıcıyı uyarabiliriz 
+        # veya varsayılanlarla devam edebiliriz. Kullanıcı butona basmadıysa varsayılanlar geçerli olsun.
+
+        # 3. Hazırlık ve UI Güncelleme
+        self.table_res.setRowCount(0)
+        self.test_paused = False
+        self.btn_pause_bulk.setEnabled(True)
+        self.btn_pause_bulk.setText("⏸️ Testi Durdur")
+        self.btn_pause_bulk.setObjectName("PauseBtn")
+        self.btn_pause_bulk.setStyleSheet(NEON_STYLE)
+
+        # Scenarios hazırla
         scenarios = []
         if self.loaded_demands and len(self.loaded_demands) > 0:
             start_idx = 0
-            if not self.loaded_demands[0][0].isdigit():
-                start_idx = 1
+            if not self.loaded_demands[0][0].isdigit(): start_idx = 1 # Header kontrolü
             
             for row in self.loaded_demands[start_idx:]:
                 if len(row) >= 2:
                     try:
                         s = int(row[0])
                         d = int(row[1])
-                        bw = row[2] if len(row) > 2 else f"{random.randint(10,100)} Mbps"
+                        # BW formatı: "100" veya "100 Mbps"
+                        bw_str = str(row[2]).lower().replace("mbps","").strip()
+                        bw = float(bw_str) if bw_str else 10.0
                         scenarios.append((s, d, bw))
-                    except ValueError:
-                        continue
-        else:
-            QMessageBox.warning(self, "Uyarı", "DemandData.csv yüklenemedi veya boş!")
-            return
-
+                    except ValueError: continue
+        
         if not scenarios:
-             QMessageBox.warning(self, "Uyarı", "Test edilecek veri yok veya CSV boş.")
+             QMessageBox.warning(self, "Uyarı", "Test edilecek veri yok veya CSV boş/hatalı.")
+             self.btn_pause_bulk.setEnabled(False)
              return
 
-        for i, (s, d, bw) in enumerate(scenarios):
+        # Ağırlıkları al (Tüm algoritmalar için ortak)
+        w_delay = self.spin_delay.value()
+        w_rel = self.spin_rel.value()
+        w_res = self.spin_res.value()
+        weights_tuple = (w_delay, w_rel, w_res) # ACO vb için
+        
+        # Algoritma Ön Hazırlığı (Graf Dönüşümleri)
+        # ----------------------------------------------------------------
+        algo_graph = None 
+        
+        if "VNS" in algo_name:
+            algo_graph = NetworkGraph()
+            for node in self.G.nodes():
+                algo_graph.nodes[node] = {
+                    "s_ms": self.G.nodes[node].get('proc_delay', 5),
+                    "r_node": self.G.nodes[node].get('node_rel', 0.99)
+                }
+                algo_graph.edges.setdefault(node, {})
+            for u, v in self.G.edges():
+                props = {
+                    "bw": self.G.edges[u, v].get('bandwidth', 100),
+                    "delay": self.G.edges[u, v].get('link_delay', 10),
+                    "r_link": self.G.edges[u, v].get('link_rel', 0.99)
+                }
+                algo_graph.edges.setdefault(u, {})[v] = props
+                algo_graph.edges.setdefault(v, {})[u] = props
+
+        elif "PSO" in algo_name:
+            algo_graph = nx.Graph()
+            for n in self.G.nodes():
+                algo_graph.add_node(n, processing_delay=self.G.nodes[n].get('proc_delay', 0), reliability=self.G.nodes[n].get('node_rel', 1.0))
+            for u, v in self.G.edges():
+                e = self.G[u][v]
+                algo_graph.add_edge(u, v, bandwidth=e.get('bandwidth', 1000), delay=e.get('link_delay', 10), reliability=e.get('link_rel', 1.0))
+        
+        elif "ACO" in algo_name:
+            algo_graph = nx.Graph() # PSO ile aynı yapı genelde
+            for n in self.G.nodes():
+                algo_graph.add_node(n, processing_delay=self.G.nodes[n].get('proc_delay', 0), reliability=self.G.nodes[n].get('node_rel', 1.0))
+            for u, v in self.G.edges():
+                e = self.G[u][v]
+                algo_graph.add_edge(u, v, bandwidth=e.get('bandwidth', 1000), delay=e.get('link_delay', 10), reliability=e.get('link_rel', 1.0))
+
+        # 4. Döngü
+        # ----------------------------------------------------------------
+        total_tests = len(scenarios)
+        self.log(f"🧪 Toplu Test Başlıyor: {algo_name}, {total_tests} senaryo")
+        
+        for i, (s, d, bw_req) in enumerate(scenarios):
+            # Pause Check
+            while self.test_paused:
+                QApplication.processEvents()
+                time.sleep(0.1)
+            
             row_idx = self.table_res.rowCount()
             self.table_res.insertRow(row_idx)
-
-            s_d_str = f"{s} -> {d}"
-            success = f"%{random.randint(85, 100)}"
-            # Excel için sayılarda nokta yerine virgül kullanmak görsel açıdan hoş olabilir
-            # Ancak string olarak kaydediyoruz, CSV ayırıcısı ; olduğu sürece Excel bunu çözer.
-            avg_cost_val = random.uniform(50, 200)
-            avg_cost = f"{avg_cost_val:.2f}".replace('.', ',')
-            std_dev = f"{random.uniform(0, 10):.2f}".replace('.', ',')
-            best = f"{avg_cost_val - random.uniform(0, 5):.2f}".replace('.', ',')
-            worst = f"{avg_cost_val + random.uniform(0, 5):.2f}".replace('.', ',')
-            time_ms = f"{random.randint(50, 500)} ms"
-
-            items = [str(i + 1), s_d_str, str(bw), success, avg_cost, std_dev, best, worst, time_ms]
-
-            for col, val in enumerate(items):
-                item = QTableWidgetItem(val)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.table_res.setItem(row_idx, col, item)
             
-            # UI'yi güncelle ve 1 saniye bekle
-            QApplication.processEvents()
-            time.sleep(1)
+            # Tabloya ilk verileri yaz (Bekliyor...)
+            self.table_res.setItem(row_idx, 0, QTableWidgetItem(str(i + 1)))
+            self.table_res.setItem(row_idx, 1, QTableWidgetItem(f"{s} -> {d}"))
+            self.table_res.setItem(row_idx, 2, QTableWidgetItem(f"{bw_req:.0f}"))
+            self.table_res.setItem(row_idx, 3, QTableWidgetItem("...")) # Durum
+            
+            QApplication.processEvents() # UI güncellensin
+            
+            path = None
+            start_time = time.time()
+            cost_val = 0.0
+            
+            # --- ALGORİTMA ÇALIŞTIR ---
+            try:
+                if algo_name.startswith("Genetik"):
+                     path, cost_val = genetic_algorithm(
+                        self.G, s, d, bw_req, 
+                        w_delay, w_rel, w_res,
+                        pop_size=50, generations=50, mutation_rate=0.2, # Hız için biraz azalttım
+                        seed=42
+                    )
+                
+                elif algo_name.startswith("Sarsa"):
+                    # episodes sayısını bulk testte çok yüksek tutmamak iyi olabilir
+                    episodes_ = params.get('episodes', 500) 
+                    path, cost_val = sarsa_route(self.G, s, d, bw_req, episodes_, seed=42)
+                
+                elif "Q-Learning" in algo_name:
+                    path, cost_val = train_q_learning(
+                        self.G, s, d,
+                        params.get('alpha', 0.1), params.get('gamma', 0.99), params.get('epsilon', 0.1),
+                        params.get('episodes', 200), params.get('max_steps', 200),
+                        w_delay, w_rel, w_res,
+                        seed=42
+                    )
+                
+                elif "VNS" in algo_name:
+                    # VNS Global ayarları güncelle
+                    import VNS_Algorithm_Yigit_Emre as vns_mod
+                    old_iter = vns_mod.MAX_VNS_ITER
+                    vns_mod.MAX_VNS_ITER = params.get('max_iterations', 10)
+                    vns_mod.K_MAX = params.get('k_max', 3)
+                    
+                    vns_solver = VNS(algo_graph)
+                    # Tek run yapıp geçiyoruz
+                    path, result = vns_solver.run(s, d)
+                    if result: cost_val = result[1]["Cost"]
+                    
+                    # Restore
+                    vns_mod.MAX_VNS_ITER = old_iter
+                
+                elif "PSO" in algo_name:
+                    pso_solver = PSO(algo_graph, s, d, bw_req, 
+                                     num_particles=params.get('num_particles', 20), 
+                                     iterations=params.get('iterations', 50),
+                                     seed=42)
+                    path, cost_val = pso_solver.run()
+                
+                elif "ACO" in algo_name:
+                    path, cost_val, _ = ACOSolver.solve(
+                        algo_graph, s, d, weights_tuple, bw_req,
+                        num_ants=params.get('num_ants', 20), 
+                        num_iterations=params.get('num_iterations', 30),
+                        seed=42
+                    )
+                
+            except Exception as e:
+                self.log(f"Hata (Senaryo {i+1}): {e}")
+                path = None
 
-        QMessageBox.information(self, "Tamamlandı", f"Toplam {len(scenarios)} test tamamlandı.")
+            elapsed = (time.time() - start_time) * 1000 # ms cinsinden
+            
+            # --- SONUÇLARI YAZ ---
+            success_str = "0%"
+            cost_str = "-"
+            if path and len(path) > 0:
+                success_str = "100%"
+                cost_str = f"{cost_val:.2f}".replace('.', ',')
+                # Eğer maliyet 0 geldiyse (bazı algoritmalar döndürmeyebilir), tekrar hesapla
+                if cost_val == 0:
+                     try:
+                        c_info = compute_path_cost(self.G, path, {'delay': w_delay, 'reliability': w_rel, 'resource': w_res})
+                        cost_str = f"{c_info['total_cost']:.2f}".replace('.', ',')
+                     except: pass
+            
+            self.table_res.setItem(row_idx, 3, QTableWidgetItem(success_str))
+            
+            # Renklendirme
+            item_success = self.table_res.item(row_idx, 3)
+            if "100" in success_str:
+                item_success.setForeground(Qt.GlobalColor.green)
+            else:
+                item_success.setForeground(Qt.GlobalColor.red)
+
+            self.table_res.setItem(row_idx, 4, QTableWidgetItem(cost_str)) # Ort. Maliyet
+            self.table_res.setItem(row_idx, 5, QTableWidgetItem("0"))      # Std Sapma (Tek run)
+            self.table_res.setItem(row_idx, 6, QTableWidgetItem(cost_str)) # Best
+            self.table_res.setItem(row_idx, 7, QTableWidgetItem(cost_str)) # Worst
+            self.table_res.setItem(row_idx, 8, QTableWidgetItem(f"{elapsed:.0f}"))
+            
+            # Tabloyu kaydır
+            self.table_res.scrollToBottom()
+
+        self.btn_pause_bulk.setEnabled(False)
+        # Custom styled message box for black text
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Tamamlandı")
+        msg.setText("Tüm senaryolar test edildi.")
+        msg.setIcon(QMessageBox.Icon.Information)
+        # Force light background and black text
+        msg.setStyleSheet("""
+            QMessageBox { background-color: #f0f0f0; }
+            QLabel { color: black; font-size: 14px; }
+            QPushButton { background-color: #0078d7; color: white; padding: 5px 15px; border-radius: 4px; }
+            QPushButton:hover { background-color: #005a9e; }
+        """)
+        msg.exec()
 
     def save_bulk_results(self):
         if self.table_res.rowCount() == 0:
@@ -1438,7 +1782,7 @@ class CyberPunkApp(QMainWindow):
         # Layout ve UI güncellemeleri
         self.pos = nx.spring_layout(self.G, k=0.03, iterations=800, seed=42, scale=1, center=(0, 0))
         self.pos = self.compact_position(self.pos)
-        nodes = [str(i + 1) for i in range(self.node_count)]
+        nodes = [str(i) for i in range(self.node_count)]
         self.combo_source.addItems(nodes)
         self.combo_dest.addItems(nodes)
         self.combo_dest.setCurrentIndex(len(nodes) - 1)
@@ -1451,8 +1795,8 @@ class CyberPunkApp(QMainWindow):
         nx.draw_networkx_nodes(self.G, self.pos, ax=ax, node_color='#bc13fe', node_size=60, alpha=0.3)
         nx.draw_networkx_nodes(self.G, self.pos, ax=ax, node_color='#e040fb', node_size=15, alpha=1.0)
         
-        # Düğüm numaralarını ekle (1-indexed)
-        labels = {n: str(n + 1) for n in self.G.nodes()}
+        # Düğüm numaralarını ekle (0-indexed)
+        labels = {n: str(n) for n in self.G.nodes()}
         nx.draw_networkx_labels(self.G, self.pos, labels, ax=ax, font_size=6, font_color='white', font_weight='bold')
         
         if path:
@@ -1463,7 +1807,7 @@ class CyberPunkApp(QMainWindow):
             nx.draw_networkx_nodes(self.G, self.pos, ax=ax, nodelist=list(path), node_color='#00e5ff', node_size=80, alpha=0.9)
             
             # Yol üzerindeki düğümlerin numaralarını daha belirgin göster
-            path_labels = {n: str(n + 1) for n in path}
+            path_labels = {n: str(n) for n in path}
             nx.draw_networkx_labels(self.G, self.pos, path_labels, ax=ax, font_size=8, font_color='white', font_weight='bold')
         
         self.add_legend()
@@ -1489,7 +1833,7 @@ class CyberPunkApp(QMainWindow):
         nx.draw_networkx_nodes(self.G, self.pos, ax=ax, node_color='#e040fb', node_size=15, alpha=1.0)
         
         # Düğüm numaralarını ekle
-        labels = {n: str(n + 1) for n in self.G.nodes()}
+        labels = {n: str(n) for n in self.G.nodes()}
         nx.draw_networkx_labels(self.G, self.pos, labels, ax=ax, font_size=6, font_color='white', font_weight='bold')
         
         self.add_legend()
@@ -1507,7 +1851,7 @@ class CyberPunkApp(QMainWindow):
             nx.draw_networkx_nodes(self.G, self.pos, ax=ax, nodelist=[path[-1]], node_color='#ff0000', node_size=120)
             
             # Yol üzerindeki düğümlerin numaralarını daha belirgin göster
-            path_labels = {n: str(n + 1) for n in path[:index+2]}
+            path_labels = {n: str(n) for n in path[:index+2]}
             nx.draw_networkx_labels(self.G, self.pos, path_labels, ax=ax, font_size=8, font_color='white', font_weight='bold')
             
             self.canvas.draw()
@@ -1520,8 +1864,8 @@ class CyberPunkApp(QMainWindow):
         if not self.validate_weights(): return
         import time
         try:
-            s = int(self.combo_source.currentText()) - 1
-            d = int(self.combo_dest.currentText()) - 1
+            s = int(self.combo_source.currentText())
+            d = int(self.combo_dest.currentText())
             algo = self.combo_algo.currentText()
             
             # Analiz çubuğunu güncelle - Algoritma adı
@@ -1547,9 +1891,18 @@ class CyberPunkApp(QMainWindow):
             # Yol bulunamadıysa kullanıcıyı uyar
             if not path or len(path) == 0:
                 self.log(f"⚠️ UYARI: {algo} algoritması yol bulamadı!")
-                QMessageBox.warning(self, "Yol Bulunamadı", 
-                                  f"{algo} algoritması kaynak {s+1}'den hedef {d+1}'e giden bir yol bulamadı.\n\n"
-                                  f"Lütfen farklı kaynak/hedef veya farklı algoritma deneyin.")
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Warning)
+                msg.setWindowTitle("Yol Bulunamadı")
+                msg.setText(f"{algo} algoritması kaynak {s}'den hedef {d}'e giden bir yol bulamadı.\n\n"
+                           f"Lütfen farklı kaynak/hedef veya farklı algoritma deneyin.")
+                msg.setStyleSheet("""
+                    QMessageBox { background-color: #f0f0f0; }
+                    QLabel { color: black; font-size: 14px; }
+                    QPushButton { background-color: #0078d7; color: white; padding: 5px 15px; border-radius: 4px; }
+                    QPushButton:hover { background-color: #005a9e; }
+                """)
+                msg.exec()
                 return
             
             # Analiz çubuğunu güncelle - Yol uzunluğu
@@ -1601,8 +1954,8 @@ class CyberPunkApp(QMainWindow):
                 self.lbl_analysis_cost.setText(f"{total_cost_val:.4f}")
                 self.lbl_analysis_status.setText("✅ Başarılı")
                 
-                # Yolu göster (1-indexed)
-                path_str = " → ".join(str(node + 1) for node in path)
+                # Yolu göster (0-indexed)
+                path_str = " → ".join(str(node) for node in path)
                 self.lbl_analysis_path.setText(path_str)
                 
                 self.log(f"📊 Yol Metrikleri:")
@@ -1658,7 +2011,8 @@ class CyberPunkApp(QMainWindow):
             best_path, best_cost = genetic_algorithm(
                 self.G, s, d, min_bw, 
                 w_delay, w_rel, w_res,
-                pop_size=60, generations=120, mutation_rate=0.2
+                pop_size=60, generations=120, mutation_rate=0.2,
+                seed=42
             )
             
             if best_path and len(best_path) > 1:
@@ -1709,7 +2063,7 @@ class CyberPunkApp(QMainWindow):
             # SARSA algoritmasını çalıştır
             # SARSA modülü kendi graf yapısını kullanıyor, bu yüzden geçici olarak
             # mevcut grafı SARSA formatına uygun hale getiriyoruz
-            best_path, best_cost = sarsa_route(self.G, s, d, min_bandwidth, episodes)
+            best_path, best_cost = sarsa_route(self.G, s, d, min_bandwidth, episodes, seed=42)
             
             if best_path:
                 self.log(f"✅ SARSA tamamlandı! Yol bulundu: {len(best_path)} düğüm")
@@ -1769,7 +2123,8 @@ class CyberPunkApp(QMainWindow):
                 self.G, s, d,
                 alpha, gamma, epsilon,
                 episodes, max_steps,
-                w_delay, w_rel, w_res
+                w_delay, w_rel, w_res,
+                seed=42
             )
             
             if best_path:
@@ -1844,7 +2199,7 @@ class CyberPunkApp(QMainWindow):
             
             for run in range(test_runs):
                 self.log(f"  Run {run + 1}/{test_runs}...")
-                path, result = vns.run(s, d)
+                path, result = vns.run(s, d, seed=42 + run)
                 if path and result:
                     cost = result[1]["Cost"]
                     if cost < best_cost:
@@ -1916,7 +2271,7 @@ class CyberPunkApp(QMainWindow):
                 )
             
             # PSO algoritmasını çalıştır
-            pso = PSO(pso_G, s, d, min_bw, num_particles=num_particles, iterations=iterations)
+            pso = PSO(pso_G, s, d, min_bw, num_particles=num_particles, iterations=iterations, seed=42)
             path, cost = pso.run()
             
             if path:
@@ -1990,7 +2345,8 @@ class CyberPunkApp(QMainWindow):
             # ACO algoritmasını çalıştır
             path, cost, duration = ACOSolver.solve(
                 aco_G, s, d, weights, min_bw,
-                num_ants=num_ants, num_iterations=iterations
+                num_ants=num_ants, num_iterations=iterations,
+                seed=42
             )
             
             if path:
