@@ -288,7 +288,8 @@ def main():
 
         # Robustluk için algoritmayı defalarca çalıştır
         for _ in range(TEST_RUNS):
-            path, result = vns.run(s, d)
+            # Tekrarlanabilir sonuçlar için seed=42 kullan
+            path, result = vns.run(s, d, seed=42)
             if path:
                 cost = result[1]["Cost"]
                 if cost < best_cost:

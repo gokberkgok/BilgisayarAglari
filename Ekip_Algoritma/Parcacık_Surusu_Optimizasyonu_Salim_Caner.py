@@ -274,7 +274,8 @@ if __name__ == "__main__":
     D = int(input("Destination: "))
     B = float(input("Bandwidth (Mbps): "))
 
-    pso = PSO(G, S, D, B)
+    # Tekrarlanabilir sonuçlar için seed=42 kullan
+    pso = PSO(G, S, D, B, seed=42)
     path, cost = pso.run()
 
     if path:
@@ -291,7 +292,8 @@ if __name__ == "__main__":
 
     demands = load_demands()
     for i, (s, d, bw) in enumerate(demands, 1):
-        pso = PSO(G, s, d, bw)
+        # Tekrarlanabilir sonuçlar için seed=42 kullan
+        pso = PSO(G, s, d, bw, seed=42)
         path, cost = pso.run()
 
         if path:

@@ -686,9 +686,11 @@ class MainWindow(QMainWindow):
 
         # Seçime göre ilgili algoritmayı çalıştır
         if "ACO" in algo_choice:
-            path, cost, time_ms = ACOSolver.solve(self.G, S, D, weights, min_bw=B)
+            # Tekrarlanabilir sonuçlar için seed=42 kullan
+            path, cost, time_ms = ACOSolver.solve(self.G, S, D, weights, min_bw=B, seed=42)
         else:
-            path, cost, time_ms = GASolver.solve(self.G, S, D, weights, min_bw=B)
+            # Tekrarlanabilir sonuçlar için seed=42 kullan
+            path, cost, time_ms = GASolver.solve(self.G, S, D, weights, min_bw=B, seed=42)
 
         # Eğer başarılı bir yol bulunduysa:
         if path:
@@ -818,10 +820,12 @@ class MainWindow(QMainWindow):
                 for _ in range(repeats):
                     if algo_name == "ACO":
                         # Daha hızlı sonuç için iterasyon/karınca sayısı düşürüldü
-                        path, cost, t = ACOSolver.solve(self.G, S, D, weights, min_bw=B, num_ants=15, num_iterations=15)
+                        # Tekrarlanabilir sonuçlar için seed=42 kullan
+                        path, cost, t = ACOSolver.solve(self.G, S, D, weights, min_bw=B, num_ants=15, num_iterations=15, seed=42)
                     else:
                         # Daha hızlı sonuç için popülasyon/jenerasyon düşürüldü
-                        path, cost, t = GASolver.solve(self.G, S, D, weights, min_bw=B, population_size=20, generations=20)
+                        # Tekrarlanabilir sonuçlar için seed=42 kullan
+                        path, cost, t = GASolver.solve(self.G, S, D, weights, min_bw=B, population_size=20, generations=20, seed=42)
                     
                     if path:
                         success_count += 1

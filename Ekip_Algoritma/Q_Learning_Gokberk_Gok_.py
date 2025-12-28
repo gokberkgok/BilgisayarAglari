@@ -412,7 +412,8 @@ def main():
         G, SOURCE, DESTINATION,
         ALPHA, GAMMA, EPSILON,
         EPISODES, MAX_STEPS,
-        W_DELAY, W_RELIABILITY, W_RESOURCE
+        W_DELAY, W_RELIABILITY, W_RESOURCE,
+        seed=42  # Tekrarlanabilir sonuçlar için
     )
     
     # 4. Sonucu Göster

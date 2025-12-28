@@ -277,7 +277,8 @@ if __name__ == "__main__":
         D = int(input("Destination (Hedef): "))
         B = float(input("Bandwidth (Mbps): "))
         
-        path, cost = sarsa_route(G, S, D, B)
+        # Tekrarlanabilir sonuçlar için seed=42 kullan (arayüz ile tutarlılık)
+        path, cost = sarsa_route(G, S, D, B, seed=42)
 
         if path:
             print("\n✅ EN İYİ YOL BULUNDU:")
@@ -299,7 +300,8 @@ if __name__ == "__main__":
     demands = load_demands()
 
     for i, (s, d, bw) in enumerate(demands, 1):
-        path, cost = sarsa_route(G, s, d, bw)
+        # Tekrarlanabilir sonuçlar için seed=42 kullan
+        path, cost = sarsa_route(G, s, d, bw, seed=42)
         if path:
             print(f"Test #{i:02d} | {s} -> {d} ({bw} Mbps) | ✅ Cost={cost:.4f}")
         else:

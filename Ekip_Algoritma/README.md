@@ -8,8 +8,10 @@ Bu proje, bilgisayar ağlarında Hizmet Kalitesi (QoS - Quality of Service) gere
 *   **Gelişmiş Görselleştirme:** Ağ topolojisinin `NetworkX` ve `Matplotlib` tabanlı interaktif görselleştirmesi.
 *   **QoS Analizi:** Gecikme (Delay), Güvenilirlik (Reliability) ve Bant Genişliği (Bandwidth) gibi metriklerin detaylı analizi.
 *   **Modern Arayüz:** PyQt6 ile geliştirilmiş, Neon/Cyberpunk temalı, kullanımı kolay grafik arayüz (GUI).
-*   **Toplu Deney Modu:** CSV dosyalarından yüklenen yüzlerce senaryoyu otomatik olarak test etme ve sonuçları raporlama.
+*   **Toplu Deney Modu:** CSV dosyalarından yüklenen yüzlerce senaryoyu otomatik olarak test etme, duraklama/devam ettirme ve sonuçları raporlama.
+*   **Kullanıcı Kontrollü Seed:** Arayüzden seed değerini manuel olarak ayarlama veya rastgele çalıştırma seçeneği.
 *   **Tekrarlanabilirlik:** Tüm algoritmalar için `seed` (tohum) desteği sayesinde %100 tekrarlanabilir ve doğrulanabilir sonuçlar.
+*   **Standart Node İndeksleme:** Tüm projede 0-249 arası tutarlı düğüm numaralandırması.
 
 ## 🧠 Algoritmalar ve Katkıda Bulunanlar
 
@@ -48,14 +50,18 @@ python Arayuz.py
 ### Arayüz Sekmeleri
 
 *   **🔍 Tekli Analiz:**
-    *   Kaynak ve Hedef düğümleri seçin.
+    *   Kaynak ve Hedef düğümleri seçin (0-249 arası).
     *   Minimum Bant Genişliği ve QoS ağırlıklarını (Gecikme, Güvenilirlik, Kaynak) ayarlayın.
+    *   **Seed Kontrolü:** 
+        *   "Sabit Seed Kullan" kutusunu işaretleyerek belirli bir seed değeri ile tekrarlanabilir sonuçlar elde edebilirsiniz.
+        *   Kutu işaretli değilse, her çalıştırmada farklı rastgele sonuçlar üretilir.
     *   İstediğiniz algoritmayı seçip **"HESAPLA ve GÖSTER"** butonuna tıklayın.
     *   Sonuçlar, yol animasyonu ve detaylı metrikler ekranın sağ tarafında gösterilecektir.
 
 *   **📊 Toplu Deney:**
     *   Bu sekmede, `DemandData.csv` dosyasındaki tüm senaryolar sırasıyla test edilir.
     *   Algoritmayı seçin ve **"🧪 TESTİ BAŞLAT"** butonuna basın.
+    *   Test sırasında **"⏸️ DURAKLAT"** butonu ile testi duraklatabilir, **"▶️ DEVAM ET"** ile devam ettirebilirsiniz.
     *   Sonuçlar anlık olarak tabloda listelenir ve dilerseniz CSV/Excel formatında kaydedilebilir.
 
 ## 📂 Dosya Yapısı
@@ -72,6 +78,19 @@ python Arayuz.py
 ## 🔬 Tekrarlanabilirlik ve Seed Desteği
 
 Proje, bilimsel araştırma ve akademik çalışmalar için kritik öneme sahip **%100 tekrarlanabilir sonuçlar** sunmaktadır. Tüm algoritmalar `seed` (rastgele sayı üreteci tohum değeri) parametresi ile çalışacak şekilde güncellenmiştir.
+
+### Kullanıcı Kontrollü Seed
+
+Arayüzün **Tekli Analiz** sekmesinde, kullanıcılar seed değerini manuel olarak kontrol edebilir:
+
+*   **"Sabit Seed Kullan" Checkbox:** Bu kutu işaretlendiğinde, yanındaki spinbox'tan belirlenen seed değeri kullanılır.
+*   **Seed Değeri Spinbox:** 0-9999 arası bir seed değeri seçilebilir (varsayılan: 42).
+*   **Rastgele Mod:** Checkbox işaretli değilse, algoritmalar `seed=None` ile çalışır ve her çalıştırmada farklı sonuçlar üretir.
+
+Bu özellik sayesinde:
+*   Aynı parametrelerle yapılan testlerin aynı sonuçları vermesi garanti edilir (sabit seed ile)
+*   Farklı çözüm uzaylarını keşfetmek için rastgele mod kullanılabilir
+*   Sonuçların doğrulanabilirliği ve tekrarlanabilirliği sağlanır
 
 ### Seed Implementasyonu
 
@@ -100,6 +119,17 @@ python verify_seed.py
 ```
 
 Bu script, aynı seed değeri ile yapılan iki çalıştırmanın özdeş sonuçlar verdiğini, farklı seed değerleri ile yapılan çalıştırmaların ise farklı sonuçlar ürettiğini doğrular.
+
+## 🆕 Son Güncellemeler
+
+### Versiyon 2.0 - Aralık 2025
+
+*   **✅ Kullanıcı Kontrollü Seed:** Arayüze "Sabit Seed Kullan" checkbox ve seed değeri spinbox eklendi. Kullanıcılar artık manuel olarak seed değerini kontrol edebilir veya rastgele mod kullanabilir.
+*   **✅ Duraklat/Devam Et:** Toplu deney testlerinde duraklama ve devam ettirme özelliği eklendi.
+*   **✅ Node ID Standardizasyonu:** Tüm projede 0-249 arası tutarlı düğüm numaralandırması sağlandı.
+*   **✅ Kapsamlı Dokümantasyon:** Tüm algoritma dosyalarına satır satır açıklayıcı yorumlar eklendi.
+*   **✅ Yol Görselleştirmesi:** Algoritma sonuçlarında bulunan yolun düğüm sıralaması ile gösterimi eklendi.
+*   **✅ Gelişmiş UI/UX:** Neon/Cyberpunk temalı modern arayüz tasarımı ve kullanıcı deneyimi iyileştirmeleri.
 
 ## 📝 Notlar
 

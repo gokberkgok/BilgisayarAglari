@@ -95,7 +95,7 @@ genetic_algorithm = genetic_module.genetic_algorithm
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QComboBox, QPushButton, QFrame, QGroupBox, QGridLayout, QDoubleSpinBox,
-    QMessageBox, QTabWidget, QTableWidget, QTableWidgetItem, QSpinBox, QHeaderView, QFileDialog, QDialog, QTextEdit
+    QMessageBox, QTabWidget, QTableWidget, QTableWidgetItem, QSpinBox, QHeaderView, QFileDialog, QDialog, QTextEdit, QCheckBox, QScrollArea
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
@@ -1207,8 +1207,92 @@ class CyberPunkApp(QMainWindow):
         self.lbl_analysis_path.setWordWrap(True)
         right_layout.addWidget(self.lbl_analysis_path)
         
+        # Ayırıcı çizgi
+        line3 = QFrame(); line3.setFrameShape(QFrame.Shape.HLine); line3.setStyleSheet("color: #333;")
+        right_layout.addWidget(line3)
+        
+        # 7. Seed Kontrolü
+        lbl_seed_title = QLabel("Rastgelelik Kontrolü:")
+        lbl_seed_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #aaa;")
+        right_layout.addWidget(lbl_seed_title)
+        
+        # Checkbox: Sabit Seed Kullan
+        self.chk_use_seed = QCheckBox("🎲 Sabit Seed Kullan")
+        self.chk_use_seed.setStyleSheet("""
+            QCheckBox {
+                color: #e0e0e0;
+                font-size: 13px;
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border: 2px solid #bc13fe;
+                border-radius: 4px;
+                background-color: #121212;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #bc13fe;
+                border-color: #bc13fe;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #ff00ff;
+            }
+        """)
+        self.chk_use_seed.setChecked(False)  # Varsayılan: kapalı (her seferinde farklı)
+        self.chk_use_seed.toggled.connect(self.on_seed_checkbox_toggled)
+        right_layout.addWidget(self.chk_use_seed)
+        
+        # Seed değeri spinbox
+        seed_value_layout = QHBoxLayout()
+        lbl_seed_val = QLabel("Seed Değeri:")
+        lbl_seed_val.setStyleSheet("font-size: 12px; color: #888;")
+        seed_value_layout.addWidget(lbl_seed_val)
+        
+        self.spin_seed = QSpinBox()
+        self.spin_seed.setRange(0, 99999)
+        self.spin_seed.setValue(42)
+        self.spin_seed.setEnabled(False)  # Başlangıçta kapalı
+        self.spin_seed.valueChanged.connect(self.on_seed_value_changed)
+        seed_value_layout.addWidget(self.spin_seed)
+        right_layout.addLayout(seed_value_layout)
+        
+        # Açıklama metni
+        self.lbl_seed_info = QLabel("Her çalıştırmada farklı sonuçlar")
+        self.lbl_seed_info.setStyleSheet("color: #666; font-size: 10px; font-style: italic;")
+        self.lbl_seed_info.setWordWrap(True)
+        right_layout.addWidget(self.lbl_seed_info)
+        
         right_layout.addStretch()
-        layout.addWidget(right_panel)
+        
+        # Sağ paneli scroll area içine al
+        scroll_area = QScrollArea()
+        scroll_area.setWidget(right_panel)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFixedWidth(300)  # Scroll bar için biraz daha geniş
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: #0a0a0a;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #bc13fe;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #ff00ff;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+        layout.addWidget(scroll_area)
 
     # ------------------------------------------------------------
     # SEKME 2: TOPLU DENEY
@@ -1546,13 +1630,13 @@ class CyberPunkApp(QMainWindow):
                         self.G, s, d, bw_req, 
                         w_delay, w_rel, w_res,
                         pop_size=50, generations=50, mutation_rate=0.2, # Hız için biraz azalttım
-                        seed=42
+                        seed=self.get_seed_value()
                     )
                 
                 elif algo_name.startswith("Sarsa"):
                     # episodes sayısını bulk testte çok yüksek tutmamak iyi olabilir
                     episodes_ = params.get('episodes', 500) 
-                    path, cost_val = sarsa_route(self.G, s, d, bw_req, episodes_, seed=42)
+                    path, cost_val = sarsa_route(self.G, s, d, bw_req, episodes_, seed=self.get_seed_value())
                 
                 elif "Q-Learning" in algo_name:
                     path, cost_val = train_q_learning(
@@ -1560,7 +1644,7 @@ class CyberPunkApp(QMainWindow):
                         params.get('alpha', 0.1), params.get('gamma', 0.99), params.get('epsilon', 0.1),
                         params.get('episodes', 200), params.get('max_steps', 200),
                         w_delay, w_rel, w_res,
-                        seed=42
+                        seed=self.get_seed_value()
                     )
                 
                 elif "VNS" in algo_name:
@@ -1572,7 +1656,8 @@ class CyberPunkApp(QMainWindow):
                     
                     vns_solver = VNS(algo_graph)
                     # Tek run yapıp geçiyoruz
-                    path, result = vns_solver.run(s, d, seed=42)
+                    seed_val = self.get_seed_value()
+                    path, result = vns_solver.run(s, d, seed=seed_val)
                     if result: cost_val = result[1]["Cost"]
                     
                     # Restore
@@ -1582,7 +1667,7 @@ class CyberPunkApp(QMainWindow):
                     pso_solver = PSO(algo_graph, s, d, bw_req, 
                                      num_particles=params.get('num_particles', 20), 
                                      iterations=params.get('iterations', 50),
-                                     seed=42)
+                                     seed=self.get_seed_value())
                     path, cost_val = pso_solver.run()
                 
                 elif "ACO" in algo_name:
@@ -1590,7 +1675,7 @@ class CyberPunkApp(QMainWindow):
                         algo_graph, s, d, weights_tuple, bw_req,
                         num_ants=params.get('num_ants', 20), 
                         num_iterations=params.get('num_iterations', 30),
-                        seed=42
+                        seed=self.get_seed_value()
                     )
                 
             except Exception as e:
@@ -1682,6 +1767,41 @@ class CyberPunkApp(QMainWindow):
             msg.exec()
             return False
         return True
+
+    def on_seed_checkbox_toggled(self, checked):
+        """
+        Seed checkbox'ı değiştiğinde çağrılır.
+        Checkbox işaretliyse: SpinBox aktif, sabit seed kullanılır
+        Checkbox kapalıysa: SpinBox pasif, her seferinde farklı seed
+        """
+        self.spin_seed.setEnabled(checked)
+        if checked:
+            self.lbl_seed_info.setText(f"Sabit seed: {self.spin_seed.value()} (Tekrarlanabilir)")
+            self.lbl_seed_info.setStyleSheet("color: #00ff00; font-size: 10px; font-style: italic;")
+        else:
+            self.lbl_seed_info.setText("Her çalıştırmada farklı sonuçlar")
+            self.lbl_seed_info.setStyleSheet("color: #666; font-size: 10px; font-style: italic;")
+    
+    def on_seed_value_changed(self, value):
+        """
+        Seed SpinBox değeri değiştiğinde çağrılır.
+        Checkbox işaretliyse bilgi metnini günceller.
+        """
+        if self.chk_use_seed.isChecked():
+            self.lbl_seed_info.setText(f"Sabit seed: {value} (Tekrarlanabilir)")
+    
+    def get_seed_value(self):
+        """
+        Algoritmalara gönderilecek seed değerini döndürür.
+        
+        Returns:
+            int veya None: Checkbox işaretliyse kullanıcının girdiği seed,
+                          değilse None (her seferinde farklı rastgele sonuçlar)
+        """
+        if self.chk_use_seed.isChecked():
+            return self.spin_seed.value()
+        else:
+            return None
 
     def compact_position(self, pos):
         xs = [v[0] for v in pos.values()]
@@ -2012,7 +2132,7 @@ class CyberPunkApp(QMainWindow):
                 self.G, s, d, min_bw, 
                 w_delay, w_rel, w_res,
                 pop_size=60, generations=120, mutation_rate=0.2,
-                seed=42
+                seed=self.get_seed_value()
             )
             
             if best_path and len(best_path) > 1:
@@ -2063,7 +2183,7 @@ class CyberPunkApp(QMainWindow):
             # SARSA algoritmasını çalıştır
             # SARSA modülü kendi graf yapısını kullanıyor, bu yüzden geçici olarak
             # mevcut grafı SARSA formatına uygun hale getiriyoruz
-            best_path, best_cost = sarsa_route(self.G, s, d, min_bandwidth, episodes, seed=42)
+            best_path, best_cost = sarsa_route(self.G, s, d, min_bandwidth, episodes, seed=self.get_seed_value())
             
             if best_path:
                 self.log(f"✅ SARSA tamamlandı! Yol bulundu: {len(best_path)} düğüm")
@@ -2124,7 +2244,7 @@ class CyberPunkApp(QMainWindow):
                 alpha, gamma, epsilon,
                 episodes, max_steps,
                 w_delay, w_rel, w_res,
-                seed=42
+                seed=self.get_seed_value()
             )
             
             if best_path:
@@ -2199,7 +2319,8 @@ class CyberPunkApp(QMainWindow):
             
             for run in range(test_runs):
                 self.log(f"  Run {run + 1}/{test_runs}...")
-                path, result = vns.run(s, d, seed=42 + run)
+                seed_val = self.get_seed_value()
+                path, result = vns.run(s, d, seed=(seed_val + run) if seed_val is not None else None)
                 if path and result:
                     cost = result[1]["Cost"]
                     if cost < best_cost:
@@ -2271,7 +2392,7 @@ class CyberPunkApp(QMainWindow):
                 )
             
             # PSO algoritmasını çalıştır
-            pso = PSO(pso_G, s, d, min_bw, num_particles=num_particles, iterations=iterations, seed=42)
+            pso = PSO(pso_G, s, d, min_bw, num_particles=num_particles, iterations=iterations, seed=self.get_seed_value())
             path, cost = pso.run()
             
             if path:
@@ -2346,7 +2467,7 @@ class CyberPunkApp(QMainWindow):
             path, cost, duration = ACOSolver.solve(
                 aco_G, s, d, weights, min_bw,
                 num_ants=num_ants, num_iterations=iterations,
-                seed=42
+                seed=self.get_seed_value()
             )
             
             if path:
