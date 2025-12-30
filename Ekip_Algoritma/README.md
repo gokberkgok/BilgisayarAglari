@@ -30,8 +30,8 @@ Projeyi yerel makinenizde çalıştırmak için aşağıdaki adımları izleyin:
 
 1.  **Repoyu Klonlayın:**
     ```bash
-    git clone https://github.com/kullaniciadi/proje-adi.git
-    cd proje-adi
+    git clone https://github.com/gokberkgok/BilgisayarAglari
+    cd Ekip-Algoritma
     ```
 
 2.  **Gerekli Kütüphaneleri Yükleyin:**
