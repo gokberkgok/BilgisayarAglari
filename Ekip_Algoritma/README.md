@@ -12,15 +12,16 @@ Bu proje, bilgisayar ağlarında Hizmet Kalitesi (QoS - Quality of Service) gere
 *   **Tekrarlanabilirlik:** Tüm algoritmalar için `seed` (tohum) desteği sayesinde %100 tekrarlanabilir ve doğrulanabilir sonuçlar.
 
 ## 🧠 Algoritmalar ve Katkıda Bulunanlar
-
-Proje kapsamında aşağıdaki algoritmalar implemente edilmiştir:
-
-1.  **SARSA Algoritması** - *Oguzhan Demirbas*
-2.  **Genetik Algoritma (GA)** - *Azra Kaya*
-3.  **Karınca Kolonisi Optimizasyonu (ACO)** - *Aivaz Arysbay*
-4.  **Q-Learning** - *Gokberk Gok*
-5.  **Parçacık Sürüsü Optimizasyonu (PSO)** - *Salim Caner*
-6.  **Değişken Komşuluk Arama (VNS)** - *Yigit Emre*
+1.  **SARSA Algoritması** - *Oguzhan Demirbas*  https://github.com/OguzIronCode
+2.  **Genetik Algoritma (GA)** - *Azra Kaya* https://github.com/kayazra
+3.  **Karınca Kolonisi Optimizasyonu (ACO)** - *Aivaz Arysbay* https://github.com/Aivazz
+4.  **Q-Learning** - *Gokberk Gok* https://github.com/gokberkgok
+5.  **Parçacık Sürüsü Optimizasyonu (PSO)** - *Salim Caner* https://github.com/canerozal
+6.  **Değişken Komşuluk Arama (VNS)** - *Yigit Emre* https://github.com/yigitemre22
+7.  **Arayüz** 
+        *Enes Kuru* - https://github.com/eneskru
+        *Umut Kağan Ceylan* - https://github.com/umutkaganc
+        *Wala Quasem* - https://github.com/wala127
 
 ## 🛠️ Kurulum
 
