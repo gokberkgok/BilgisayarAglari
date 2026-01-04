@@ -60,9 +60,14 @@ python Arayuz.py
 
 *   **📊 Toplu Deney:**
     *   Bu sekmede, `DemandData.csv` dosyasındaki tüm senaryolar sırasıyla test edilir.
-    *   Algoritmayı seçin ve **"🧪 TESTİ BAŞLAT"** butonuna basın.
     *   Test sırasında **"⏸️ DURAKLAT"** butonu ile testi duraklatabilir, **"▶️ DEVAM ET"** ile devam ettirebilirsiniz.
     *   Sonuçlar anlık olarak tabloda listelenir ve dilerseniz CSV/Excel formatında kaydedilebilir.
+
+*   **⚖️ Algoritma Karşılaştırma:**
+    *   Bu sekmede, 6 farklı algoritmayı (SARSA, Q-Learning, GA, ACO, PSO, VNS) aynı senaryo üzerinde karşılaştırabilirsiniz.
+    *   Kaynak, Hedef ve Bant Genişliği değerlerini girdikten sonra **"🚀 KARŞILAŞTIR"** butonuna basmanız yeterlidir.
+    *   Tabloda her algoritmanın **Maliyet**, **Süre**, **Yol Uzunluğu** ve **Durum** bilgileri karşılaştırmalı olarak gösterilir.
+    *   Sonuçları CSV formatında dışa aktarabilirsiniz.
 
 ## 📂 Dosya Yapısı
 
@@ -129,6 +134,7 @@ Bu script, aynı seed değeri ile yapılan iki çalıştırmanın özdeş sonuç
 *   **✅ Node ID Standardizasyonu:** Tüm projede 0-249 arası tutarlı düğüm numaralandırması sağlandı.
 *   **✅ Kapsamlı Dokümantasyon:** Tüm algoritma dosyalarına satır satır açıklayıcı yorumlar eklendi.
 *   **✅ Yol Görselleştirmesi:** Algoritma sonuçlarında bulunan yolun düğüm sıralaması ile gösterimi eklendi.
+*   **✅ Algoritma Karşılaştırma:** Tüm algoritmaları aynı anda çalıştırıp performanslarını (sürei maliyet, hop) kıyaslayan yeni bir sekme eklendi.
 *   **✅ Gelişmiş UI/UX:** Neon/Cyberpunk temalı modern arayüz tasarımı ve kullanıcı deneyimi iyileştirmeleri.
 
 ## 📝 Notlar
