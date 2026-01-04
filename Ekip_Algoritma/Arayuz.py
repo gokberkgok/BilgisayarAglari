@@ -1016,6 +1016,11 @@ class CyberPunkApp(QMainWindow):
         self.setup_bulk_experiment_tab()
         self.tabs.addTab(self.tab_bulk, "📊 Toplu Deney (Batch Test)")
 
+        # Sekme 3: Karşılaştırma
+        self.tab_compare = QWidget()
+        self.setup_comparison_tab()
+        self.tabs.addTab(self.tab_compare, "⚖️ Algoritma Karşılaştırma")
+
     # ------------------------------------------------------------
     # SEKME 1: TEKLİ ANALİZ
     # ------------------------------------------------------------
@@ -2487,6 +2492,221 @@ class CyberPunkApp(QMainWindow):
             traceback.print_exc()
             self.log(f"{'='*60}\n")
             return None
+
+    # -------------------------------------------------------------------------------------------------
+    # SEKME 3: ALGORİTMA KARŞILAŞTIRMA
+    # -------------------------------------------------------------------------------------------------
+    def setup_comparison_tab(self):
+        layout = QHBoxLayout(self.tab_compare)
+        
+        # --- Sol Panel (Ayarlar) ---
+        left_panel = QFrame()
+        left_panel.setFixedWidth(300)
+        left_panel.setStyleSheet("background-color: #0a0a0a; border-right: 1px solid #333;")
+        l_layout = QVBoxLayout(left_panel)
+        
+        # Test Ayarları
+        grp_settings = QGroupBox("Test Senaryosu")
+        g_layout = QGridLayout()
+        
+        g_layout.addWidget(QLabel("Kaynak (S):"), 0, 0)
+        self.comp_source = QComboBox()
+        # Düğümleri buraya da ekle
+        nodes = [str(i) for i in range(250)]
+        self.comp_source.addItems(nodes)
+        g_layout.addWidget(self.comp_source, 0, 1)
+        
+        g_layout.addWidget(QLabel("Hedef (D):"), 1, 0)
+        self.comp_dest = QComboBox()
+        self.comp_dest.addItems(nodes)
+        self.comp_dest.setCurrentIndex(len(nodes)-1)
+        g_layout.addWidget(self.comp_dest, 1, 1)
+        
+        g_layout.addWidget(QLabel("Bant Gen. (Mbps):"), 2, 0)
+        self.comp_bw = QDoubleSpinBox()
+        self.comp_bw.setRange(0, 10000)
+        self.comp_bw.setValue(100.0)
+        g_layout.addWidget(self.comp_bw, 2, 1)
+        
+        grp_settings.setLayout(g_layout)
+        l_layout.addWidget(grp_settings)
+        
+        # Butonlar
+        self.btn_run_compare = QPushButton("🚀 KARŞILAŞTIR")
+        self.btn_run_compare.setStyleSheet("background-color: #6a00f4; color: white; padding: 15px; font-weight: bold; font-size: 14px;")
+        self.btn_run_compare.clicked.connect(self.run_comparison_test)
+        l_layout.addWidget(self.btn_run_compare)
+        
+        self.btn_export_compare = QPushButton("💾 SONUÇLARI KAYDET (CSV)")
+        self.btn_export_compare.setStyleSheet("background-color: #0091ea; color: white; padding: 10px;")
+        self.btn_export_compare.clicked.connect(self.export_comparison_results)
+        l_layout.addWidget(self.btn_export_compare)
+        
+        l_layout.addStretch()
+        layout.addWidget(left_panel)
+        
+        # --- Sağ Panel (Sonuç Tablosu) ---
+        right_panel = QWidget()
+        r_layout = QVBoxLayout(right_panel)
+        
+        lbl_title = QLabel("📊 Karşılaştırma Sonuçları")
+        lbl_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #bc13fe; margin-bottom: 10px;")
+        r_layout.addWidget(lbl_title)
+        
+        self.table_compare = QTableWidget()
+        self.table_compare.setColumnCount(6)
+        self.table_compare.setHorizontalHeaderLabels(["Algoritma", "Maliyet", "Süre (s)", "Yol Uzunluğu", "Durum", "Yol"])
+        header = self.table_compare.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        r_layout.addWidget(self.table_compare)
+        
+        layout.addWidget(right_panel)
+
+    def run_comparison_test(self):
+        s = int(self.comp_source.currentText())
+        d = int(self.comp_dest.currentText())
+        bw = self.comp_bw.value()
+        
+        # Tabloyu temizle
+        self.table_compare.setRowCount(0)
+        
+        algorithms = [
+            ("Sarsa", self.run_sarsa_silent),
+            ("Q-Learning", self.run_qlearning_silent),
+            ("Genetik Algoritma", self.run_genetic_silent),
+            ("ACO (Karınca)", self.run_aco_silent),
+            ("PSO (Parçacık)", self.run_pso_silent),
+            ("VNS (Değişken Komşuluk)", self.run_vns_silent)
+        ]
+        
+        results = []
+        
+        for name, func in algorithms:
+            row = self.table_compare.rowCount()
+            self.table_compare.insertRow(row)
+            self.table_compare.setItem(row, 0, QTableWidgetItem(name))
+            self.table_compare.setItem(row, 4, QTableWidgetItem("Çalışıyor..."))
+            QApplication.processEvents()
+            
+            start_time = time.time()
+            try:
+                # Her algoritma silent modda çalıştırılır
+                path, cost = func(s, d, bw)
+                elapsed = time.time() - start_time
+                
+                if path:
+                    status = "✅ Başarılı"
+                    path_str = "->".join(map(str, path[:5])) + ("..." if len(path)>5 else "")
+                    path_len = len(path)
+                else:
+                    status = "❌ Başarısız"
+                    path_str = "-"
+                    path_len = 0
+                    cost = float('inf')
+                
+                self.table_compare.setItem(row, 1, QTableWidgetItem(f"{cost:.4f}"))
+                self.table_compare.setItem(row, 2, QTableWidgetItem(f"{elapsed:.4f}"))
+                self.table_compare.setItem(row, 3, QTableWidgetItem(str(path_len)))
+                self.table_compare.setItem(row, 4, QTableWidgetItem(status))
+                self.table_compare.setItem(row, 5, QTableWidgetItem(path_str))
+                
+            except Exception as e:
+                self.table_compare.setItem(row, 4, QTableWidgetItem(f"Hata: {str(e)}"))
+
+    def export_comparison_results(self):
+        try:
+            path, _ = QFileDialog.getSaveFileName(self, "Kaydet", "", "CSV Dosyası (*.csv)")
+            if not path: return
+            
+            with open(path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(["Algoritma", "Maliyet", "Süre (s)", "Yol Uzunluğu", "Durum", "Yol Detay"])
+                
+                for row in range(self.table_compare.rowCount()):
+                    data = []
+                    for col in range(self.table_compare.columnCount()):
+                        item = self.table_compare.item(row, col)
+                        data.append(item.text() if item else "")
+                    writer.writerow(data)
+            
+            QMessageBox.information(self, "Başarılı", "Sonuçlar başarıyla kaydedildi.")
+        except Exception as e:
+            QMessageBox.critical(self, "Hata", f"Kaydetme hatası: {e}")
+
+    # --- SESSİZ ALGORİTMA ÇAĞRILARI (GUI Update Olmadan) ---
+    def run_sarsa_silent(self, s, d, bw):
+        # Varsayılan parametreler: alpha=0.1, gamma=0.95, epsilon=0.1, episodes=2000
+        try:
+            best_path, best_cost = sarsa_route(self.G, s, d, bw, episodes=2000, seed=self.get_seed_value())
+            return best_path, best_cost
+        except: return None, 0
+
+    def run_qlearning_silent(self, s, d, bw):
+        try:
+            # Q-Learning varsayılan: alpha=0.1, gamma=0.9, epsilon=0.1, episodes=300
+            w_d, w_r, w_re = 0.33, 0.33, 0.34
+            best_path, best_cost = train_q_learning(self.G, s, d, 0.1, 0.9, 0.1, 300, 250, w_d, w_r, w_re, seed=self.get_seed_value())
+            return best_path, best_cost
+        except: return None, 0
+
+    def run_genetic_silent(self, s, d, bw):
+        try:
+            w_d, w_r, w_re = 0.33, 0.33, 0.34
+            best_path, best_cost = genetic_algorithm(self.G, s, d, bw, w_d, w_r, w_re, pop_size=60, generations=50, seed=self.get_seed_value())
+            return best_path, best_cost
+        except: return None, 0
+
+    def run_aco_silent(self, s, d, bw):
+        try:
+            w_d, w_r, w_re = 0.33, 0.33, 0.34
+            # ACO için özel graph yapısı gerekebilir, mevcut run_aco'daki gibi
+            aco_G = nx.Graph()
+            for n in self.G.nodes():
+                 aco_G.add_node(n, processing_delay=self.G.nodes[n].get('proc_delay',0), reliability=self.G.nodes[n].get('node_rel',1.0))
+            for u,v in self.G.edges():
+                 e = self.G[u][v]
+                 aco_G.add_edge(u,v, bandwidth=e.get('bandwidth',1000), delay=e.get('link_delay',10), reliability=e.get('link_rel',1.0))
+            
+            path, cost, _ = ACOSolver.solve(aco_G, s, d, (w_d, w_r, w_re), bw, num_ants=20, num_iterations=30, seed=self.get_seed_value())
+            return path, cost
+        except: return None, 0
+
+    def run_pso_silent(self, s, d, bw):
+        try:
+            pso_G = nx.Graph()
+            for n in self.G.nodes(): pso_G.add_node(n, processing_delay=self.G.nodes[n].get('proc_delay',0), reliability=self.G.nodes[n].get('node_rel',1.0))
+            for u,v in self.G.edges():
+                 e = self.G[u][v]
+                 pso_G.add_edge(u,v, bandwidth=e.get('bandwidth',1000), delay=e.get('link_delay',10), reliability=e.get('link_rel',1.0))
+            
+            pso = PSO(pso_G, s, d, bw, num_particles=30, iterations=100, seed=self.get_seed_value())
+            path, cost = pso.run()
+            return path, cost
+        except: return None, 0
+
+    def run_vns_silent(self, s, d, bw):
+        try:
+            # VNS graph hazırlığı
+            vns_graph = NetworkGraph()
+            for node in self.G.nodes():
+                vns_graph.nodes[node] = {"s_ms": self.G.nodes[node].get('proc_delay', 0), "r_node": self.G.nodes[node].get('node_rel', 1.0)}
+                vns_graph.edges.setdefault(node, {})
+            for u,v in self.G.edges():
+                props = {"bw": self.G.edges[u,v].get('bandwidth',1000), "delay": self.G.edges[u,v].get('link_delay',10), "r_link": self.G.edges[u,v].get('link_rel',1.0)}
+                vns_graph.edges.setdefault(u, {})[v] = props
+                vns_graph.edges.setdefault(v, {})[u] = props
+            
+            vns = VNS(vns_graph)
+            # Parametreler (Varsayılan)
+            import VNS_Algorithm_Yigit_Emre as vns_mod
+            old_iter = vns_mod.MAX_VNS_ITER
+            vns_mod.MAX_VNS_ITER = 20
+            path, result = vns.run(s, d, seed=self.get_seed_value())
+            vns_mod.MAX_VNS_ITER = old_iter
+            
+            if path and result: return path, result[1]["Cost"]
+            return None, 0
+        except: return None, 0
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

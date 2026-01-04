@@ -7,21 +7,22 @@ Bu proje, bilgisayar ağlarında Hizmet Kalitesi (QoS - Quality of Service) gere
 *   **Çoklu Algoritma Desteği:** 6 farklı optimizasyon algoritması (SARSA, Genetik, ACO, Q-Learning, PSO, VNS) ile yol hesaplama.
 *   **Gelişmiş Görselleştirme:** Ağ topolojisinin `NetworkX` ve `Matplotlib` tabanlı interaktif görselleştirmesi.
 *   **QoS Analizi:** Gecikme (Delay), Güvenilirlik (Reliability) ve Bant Genişliği (Bandwidth) gibi metriklerin detaylı analizi.
-*   **Toplu Deney Modu:** DemandData.CSV dosyasından otomatik olarak test etme, duraklama/devam ettirme ve sonuçları raporlama.
+*   **Modern Arayüz:** PyQt6 ile geliştirilmiş, Neon/Cyberpunk temalı, kullanımı kolay grafik arayüz (GUI).
+*   **Toplu Deney Modu:** CSV dosyalarından yüklenen yüzlerce senaryoyu otomatik olarak test etme, duraklama/devam ettirme ve sonuçları raporlama.
 *   **Kullanıcı Kontrollü Seed:** Arayüzden seed değerini manuel olarak ayarlama veya rastgele çalıştırma seçeneği.
 *   **Tekrarlanabilirlik:** Tüm algoritmalar için `seed` (tohum) desteği sayesinde %100 tekrarlanabilir ve doğrulanabilir sonuçlar.
+*   **Standart Node İndeksleme:** Tüm projede 0-249 arası tutarlı düğüm numaralandırması.
 
 ## 🧠 Algoritmalar ve Katkıda Bulunanlar
-1.  **SARSA Algoritması** - *Oguzhan Demirbas*  https://github.com/OguzIronCode
-2.  **Genetik Algoritma (GA)** - *Azra Kaya* https://github.com/kayazra
-3.  **Karınca Kolonisi Optimizasyonu (ACO)** - *Aivaz Arysbay* https://github.com/Aivazz
-4.  **Q-Learning** - *Gokberk Gok* https://github.com/gokberkgok
-5.  **Parçacık Sürüsü Optimizasyonu (PSO)** - *Salim Caner* https://github.com/canerozal
-6.  **Değişken Komşuluk Arama (VNS)** - *Yigit Emre* https://github.com/yigitemre22
-7.  **Arayüz** 
-        *Enes Kuru* - https://github.com/eneskru
-        *Umut Kağan Ceylan* - https://github.com/umutkaganc
-        *Wala Quasem* - https://github.com/wala127
+
+Proje kapsamında aşağıdaki algoritmalar implemente edilmiştir:
+
+1.  **SARSA Algoritması** - *Oguzhan Demirbas*
+2.  **Genetik Algoritma (GA)** - *Azra Kaya*
+3.  **Karınca Kolonisi Optimizasyonu (ACO)** - *Aivaz Arysbay*
+4.  **Q-Learning** - *Gokberk Gok*
+5.  **Parçacık Sürüsü Optimizasyonu (PSO)** - *Salim Caner*
+6.  **Değişken Komşuluk Arama (VNS)** - *Yigit Emre*
 
 ## 🛠️ Kurulum
 
@@ -29,8 +30,8 @@ Projeyi yerel makinenizde çalıştırmak için aşağıdaki adımları izleyin:
 
 1.  **Repoyu Klonlayın:**
     ```bash
-    git clone https://github.com/gokberkgok/BilgisayarAglari
-    cd Ekip-Algoritma
+    git clone https://github.com/kullaniciadi/proje-adi.git
+    cd proje-adi
     ```
 
 2.  **Gerekli Kütüphaneleri Yükleyin:**
@@ -59,9 +60,14 @@ python Arayuz.py
 
 *   **📊 Toplu Deney:**
     *   Bu sekmede, `DemandData.csv` dosyasındaki tüm senaryolar sırasıyla test edilir.
-    *   Algoritmayı seçin ve **"🧪 TESTİ BAŞLAT"** butonuna basın.
     *   Test sırasında **"⏸️ DURAKLAT"** butonu ile testi duraklatabilir, **"▶️ DEVAM ET"** ile devam ettirebilirsiniz.
     *   Sonuçlar anlık olarak tabloda listelenir ve dilerseniz CSV/Excel formatında kaydedilebilir.
+
+*   **⚖️ Algoritma Karşılaştırma:**
+    *   Bu sekmede, 6 farklı algoritmayı (SARSA, Q-Learning, GA, ACO, PSO, VNS) aynı senaryo üzerinde karşılaştırabilirsiniz.
+    *   Kaynak, Hedef ve Bant Genişliği değerlerini girdikten sonra **"🚀 KARŞILAŞTIR"** butonuna basmanız yeterlidir.
+    *   Tabloda her algoritmanın **Maliyet**, **Süre**, **Yol Uzunluğu** ve **Durum** bilgileri karşılaştırmalı olarak gösterilir.
+    *   Sonuçları CSV formatında dışa aktarabilirsiniz.
 
 ## 📂 Dosya Yapısı
 
@@ -73,6 +79,10 @@ python Arayuz.py
 *   `Parcacık_Surusu_*.py`: PSO implementasyonu.
 *   `VNS_Algorithm_*.py`: VNS implementasyonu.
 *   `*.csv`: Ağ topolojisi (Node/Edge) ve talep verileri.
+
+## 🔬 Tekrarlanabilirlik ve Seed Desteği
+
+Proje, bilimsel araştırma ve akademik çalışmalar için kritik öneme sahip **%100 tekrarlanabilir sonuçlar** sunmaktadır. Tüm algoritmalar `seed` (rastgele sayı üreteci tohum değeri) parametresi ile çalışacak şekilde güncellenmiştir.
 
 ### Kullanıcı Kontrollü Seed
 
@@ -87,6 +97,16 @@ Bu özellik sayesinde:
 *   Farklı çözüm uzaylarını keşfetmek için rastgele mod kullanılabilir
 *   Sonuçların doğrulanabilirliği ve tekrarlanabilirliği sağlanır
 
+### Seed Implementasyonu
+
+Her algoritma dosyası, `seed` parametresini kabul eder ve aşağıdaki şekilde kullanır:
+
+*   **SARSA** (`Sarsa_Algoritmasi_Oguzhan_Demirbas.py`): `sarsa_route(G, S, D, min_bw, episodes, seed=42)`
+*   **Genetik Algoritma** (`Genetik_Algoritmasi_Azra_Kaya.py`): `genetic_algorithm(..., seed=42)`
+*   **ACO** (`Karınca_Kolonisi_Algoritmasi_Aivaz_Arysbay.py`): `ACO.solve(..., seed=42)`
+*   **Q-Learning** (`Q_Learning_Gokberk_Gok_.py`): `train_q_learning(..., seed=42)`
+*   **PSO** (`Parcacık_Surusu_Optimizasyonu_Salim_Caner.py`): `PSO(..., seed=42)`
+*   **VNS** (`VNS_Algorithm_Yigit_Emre.py`): `VNS.run(..., seed=42)`
 
 ### Varsayılan Seed Değeri
 
@@ -104,6 +124,23 @@ python verify_seed.py
 ```
 
 Bu script, aynı seed değeri ile yapılan iki çalıştırmanın özdeş sonuçlar verdiğini, farklı seed değerleri ile yapılan çalıştırmaların ise farklı sonuçlar ürettiğini doğrular.
+
+## 🆕 Son Güncellemeler
+
+### Versiyon 2.0 - Aralık 2025
+
+*   **✅ Kullanıcı Kontrollü Seed:** Arayüze "Sabit Seed Kullan" checkbox ve seed değeri spinbox eklendi. Kullanıcılar artık manuel olarak seed değerini kontrol edebilir veya rastgele mod kullanabilir.
+*   **✅ Duraklat/Devam Et:** Toplu deney testlerinde duraklama ve devam ettirme özelliği eklendi.
+*   **✅ Node ID Standardizasyonu:** Tüm projede 0-249 arası tutarlı düğüm numaralandırması sağlandı.
+*   **✅ Kapsamlı Dokümantasyon:** Tüm algoritma dosyalarına satır satır açıklayıcı yorumlar eklendi.
+*   **✅ Yol Görselleştirmesi:** Algoritma sonuçlarında bulunan yolun düğüm sıralaması ile gösterimi eklendi.
+*   **✅ Algoritma Karşılaştırma:** Tüm algoritmaları aynı anda çalıştırıp performanslarını (sürei maliyet, hop) kıyaslayan yeni bir sekme eklendi.
+*   **✅ Gelişmiş UI/UX:** Neon/Cyberpunk temalı modern arayüz tasarımı ve kullanıcı deneyimi iyileştirmeleri.
+
+## 📝 Notlar
+
+*   Ağ topolojisi, proje dizinindeki CSV dosyalarından otomatik olarak oluşturulur. CSV dosyaları bulunamazsa rastgele bir Watts-Strogatz grafı üretilir.
+*   Tekrarlanabilirlik ve seed desteği hakkında detaylı bilgi için yukarıdaki **"🔬 Tekrarlanabilirlik ve Seed Desteği"** bölümüne bakınız.
 
 ---
 *Bu proje BSM307/317 Dönem Projesi kapsamında geliştirilmiştir.*
